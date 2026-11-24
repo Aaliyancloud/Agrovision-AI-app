@@ -1,8 +1,37 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AgroVisionLogo } from './AgroVisionLogo';
-import { Leaf, Sprout, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
 export const AppInitialSkeleton: React.FC = () => {
+  useEffect(() => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+
+      // Soft botanical chord chime (C5, E5, G5)
+      [523.25, 659.25, 783.99].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+
+        gain.gain.setValueAtTime(0.001, now + idx * 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.12, now + idx * 0.08 + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.08 + 0.8);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now + idx * 0.08);
+        osc.stop(now + idx * 0.08 + 0.85);
+      });
+    } catch {
+      // Ignored if browser policy restricts audio without interaction
+    }
+  }, []);
+
   return (
     <div
       aria-busy="true"
@@ -33,17 +62,17 @@ export const AppInitialSkeleton: React.FC = () => {
           </h1>
 
           <p className="text-xs sm:text-sm text-[#dcfce7] font-medium max-w-xs mx-auto leading-relaxed">
-            How are you and how is your plant journey today? Loading your tomato field intelligence...
+            How are you and how is your plant journey today? Initializing field intelligence with startup audio...
           </p>
         </div>
 
         {/* Loading Progress Bar */}
         <div className="w-full max-w-[220px] space-y-2 pt-2">
           <div className="w-full h-2 rounded-full bg-black/30 overflow-hidden p-0.5 border border-white/15">
-            <div className="h-full rounded-full bg-gradient-to-r from-[#fef3c7] to-[#b45309] animate-[shimmer_1.5s_infinite]" style={{ width: '75%' }} />
+            <div className="h-full rounded-full bg-gradient-to-r from-[#fef3c7] to-[#b45309] animate-[shimmer_1.5s_infinite]" style={{ width: '85%' }} />
           </div>
           <div className="text-[10px] font-mono text-[#bbf7d0] tracking-wider uppercase">
-            Preparing your greenhouse...
+            Preparing greenhouse audio...
           </div>
         </div>
       </div>

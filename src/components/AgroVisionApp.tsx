@@ -54,6 +54,7 @@ import { FieldMessengerView } from './FieldMessengerView';
 import { PlantJourneyView } from './PlantJourneyView';
 import { LearningCenterView } from './LearningCenterView';
 import { ProfileView } from './ProfileView';
+import { PlantScheduleCard } from './PlantScheduleCard';
 import { LevelBadgeModal, NavbarBadgeButton } from './NavbarBadgeControl';
 import { AuthModal } from './AuthModal';
 import { SwipeableRow } from './SwipeableRow';
@@ -750,7 +751,7 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
             {/* Left Primary Column */}
             <div className="lg:col-span-7 space-y-3">
               {/* Forest Command Hero Card */}
-              <section className="relative overflow-hidden rounded-3xl bg-[#14532d] p-4 sm:p-5 text-white shadow-sm space-y-3">
+              <section style={{ textAlign: 'justify' }} className="relative overflow-hidden rounded-3xl bg-[#14532d] p-4 sm:p-5 text-white shadow-sm space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="text-[11px] font-mono uppercase tracking-wider text-[#fef3c7] font-bold">
@@ -1014,6 +1015,9 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
                   </div>
                 </button>
               </div>
+
+              {/* Plant Watering & Fertilizer Schedule Section */}
+              <PlantScheduleCard />
 
               {/* Today's Field Tip Card */}
               <div className="rounded-2xl bg-[#edf5ef] border border-[#cbdcd0] p-3.5 flex items-start justify-between gap-3">
