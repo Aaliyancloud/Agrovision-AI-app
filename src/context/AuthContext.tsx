@@ -55,6 +55,7 @@ interface AuthContextValue {
   sendPasswordReset: (email: string) => Promise<boolean>;
   signOutAccount: () => Promise<void>;
   ensureUserProfileDoc: (activeUser: User) => Promise<void>;
+  updateGrowerProfile: (displayName: string, photoURL?: string) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -95,15 +96,25 @@ function writeStoredAccounts(accounts: StoredDeviceAccount[]) {
   }
 }
 
-function readDeviceProfile(): GrowerProfile | null {
-  if (typeof window === 'undefined') return null;
+function readDeviceProfile(): GrowerProfile {
+  const defaultProf: GrowerProfile = {
+    uid: 'device_aaryan_awan',
+    displayName: 'Aaryan Awan',
+    email: 'aaryan.awan@agrovision.ai',
+    emailVerified: true,
+    source: 'device'
+  };
+  if (typeof window === 'undefined') return defaultProf;
   try {
     const raw = localStorage.getItem(DEVICE_PROFILE_STORAGE_KEY);
-    if (!raw) return null;
+    if (!raw) {
+      localStorage.setItem(DEVICE_PROFILE_STORAGE_KEY, JSON.stringify(defaultProf));
+      return defaultProf;
+    }
     const parsed = JSON.parse(raw) as GrowerProfile;
-    return parsed?.uid && parsed?.email ? parsed : null;
+    return parsed?.uid && parsed?.email ? parsed : defaultProf;
   } catch {
-    return null;
+    return defaultProf;
   }
 }
 
@@ -444,20 +455,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOutAccount = useCallback(async () => {
     setAuthError(null);
     setAuthSuccess(null);
-    writeDeviceProfile(null);
-    setDeviceProfile(null);
+    const defaultProf: GrowerProfile = {
+      uid: 'device_aaryan_awan',
+      displayName: 'Aaryan Awan',
+      email: 'aaryan.awan@agrovision.ai',
+      emailVerified: true,
+      source: 'device'
+    };
+    writeDeviceProfile(defaultProf);
+    setDeviceProfile(defaultProf);
     try {
       await signOut(auth);
     } catch {
       // ignore if only local profile was signed in
     }
-    setCloudSyncStatus('guest');
+    setCloudSyncStatus('device');
   }, []);
+
+  const updateGrowerProfile = useCallback((newName: string, newPhotoURL?: string) => {
+    const cleanName = newName.trim() || 'Aaryan Awan';
+    if (user) {
+      void updateProfile(user, {
+        displayName: cleanName,
+        ...(newPhotoURL !== undefined ? { photoURL: newPhotoURL } : {})
+      }).then(() => {
+        setUser({ ...user, displayName: cleanName, ...(newPhotoURL !== undefined ? { photoURL: newPhotoURL } : {}) });
+      });
+    } else if (deviceProfile) {
+      const updated: GrowerProfile = {
+        ...deviceProfile,
+        displayName: cleanName,
+        ...(newPhotoURL !== undefined ? { photoURL: newPhotoURL } : {})
+      };
+      writeDeviceProfile(updated);
+      setDeviceProfile(updated);
+    }
+  }, [user, deviceProfile]);
 
   const activeProfile: GrowerProfile | null = user
     ? {
         uid: user.uid,
-        displayName: user.displayName || user.email?.split('@')[0] || 'Grower',
+        displayName: user.displayName || user.email?.split('@')[0] || 'Aaryan Awan',
         email: user.email || '',
         photoURL: user.photoURL,
         emailVerified: user.emailVerified,
@@ -483,7 +521,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         resendVerification,
         sendPasswordReset,
         signOutAccount,
-        ensureUserProfileDoc
+        ensureUserProfileDoc,
+        updateGrowerProfile
       }}
     >
       {children}

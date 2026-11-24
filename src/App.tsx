@@ -33,7 +33,8 @@ function getInitialAppRoute(): { mode: AppMode; tab: AppTab; action: 'camera' | 
     'learn',
     'history',
     'messenger',
-    'anatomy'
+    'anatomy',
+    'profile'
   ];
   const tab: AppTab = validTabs.includes(tabParam as AppTab)
     ? (tabParam as AppTab)

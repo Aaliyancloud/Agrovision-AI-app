@@ -31,6 +31,7 @@ import {
   Sprout,
   Trash2,
   Upload,
+  User,
   UserCheck,
   X,
   Zap
@@ -52,6 +53,7 @@ import { SmartSensorSection } from './SmartSensorSection';
 import { FieldMessengerView } from './FieldMessengerView';
 import { PlantJourneyView } from './PlantJourneyView';
 import { LearningCenterView } from './LearningCenterView';
+import { ProfileView } from './ProfileView';
 import { LevelBadgeModal, NavbarBadgeButton } from './NavbarBadgeControl';
 import { AuthModal } from './AuthModal';
 import { SwipeableRow } from './SwipeableRow';
@@ -72,7 +74,8 @@ export type AppTab =
   | 'learn'
   | 'history'
   | 'messenger'
-  | 'anatomy';
+  | 'anatomy'
+  | 'profile';
 
 interface AgroVisionAppProps {
   initialTab?: AppTab;
@@ -433,7 +436,8 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
     { id: 'care', label: isUrdu ? 'مٹی و موسم' : 'Soil & Climate', icon: Droplets },
     { id: 'learn', label: isUrdu ? 'لرننگ' : 'Learn & Atlas', icon: BookOpen },
     { id: 'messenger', label: isUrdu ? 'اے آئی ماہر' : 'AI Assistant', icon: Bot },
-    { id: 'history', label: isUrdu ? 'ریکارڈ' : 'Field Log', icon: ClipboardList }
+    { id: 'history', label: isUrdu ? 'ریکارڈ' : 'Field Log', icon: ClipboardList },
+    { id: 'profile', label: isUrdu ? 'پروفائل' : 'Profile', icon: User }
   ];
 
   const mobileDockItems: {
@@ -444,8 +448,8 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
     { id: 'home', label: isUrdu ? 'ہوم' : 'Home', icon: Home },
     { id: 'plants', label: isUrdu ? 'پودے' : 'Plants', icon: Sprout },
     { id: 'scan', label: isUrdu ? 'اسکین' : 'Scan', icon: Camera },
-    { id: 'learn', label: isUrdu ? 'لرننگ' : 'Learn', icon: BookOpen },
-    { id: 'messenger', label: isUrdu ? 'اے آئی' : 'AI Chat', icon: Bot }
+    { id: 'messenger', label: isUrdu ? 'اے آئی' : 'AI Chat', icon: Bot },
+    { id: 'profile', label: isUrdu ? 'پروفائل' : 'Profile', icon: User }
   ];
 
   return (
@@ -923,7 +927,7 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
                   <button
                     type="button"
                     onClick={() => launchCameraScan()}
-                    className="min-h-[42px] inline-flex items-center justify-center gap-2 px-3 py-2 rounded-2xl bg-[#14532d] hover:bg-[#0f3d21] border border-white/20 text-white text-xs font-extrabold shadow-xs cursor-pointer"
+                    className="min-h-[42px] inline-flex items-center justify-center gap-2 px-3 py-2 rounded-2xl bg-gradient-to-r from-[#b45309] to-[#d97706] hover:from-[#92400e] hover:to-[#b45309] border border-white/25 text-white text-xs font-extrabold shadow-md cursor-pointer"
                   >
                     <Camera className="w-4 h-4 shrink-0" />
                     <span>{isUrdu ? 'کیمرہ اسکین' : 'Camera Scan'}</span>
@@ -1619,6 +1623,16 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
             />
           </div>
         )}
+
+        {/* PROFILE SCREEN VIEW */}
+        {activeTab === 'profile' && (
+          <div key="profile" className="native-view-enter">
+            <ProfileView
+              onOpenAuth={() => setIsAuthModalOpen(true)}
+              onOpenScanner={() => launchCameraScan()}
+            />
+          </div>
+        )}
       </main>
 
       {/* Mobile Floating Pill Bottom Navigation Dock (Raised Center Scan Gesture Accent) */}
@@ -1643,8 +1657,8 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
                   onClick={() => launchCameraScan()}
                   className={`flex-1 min-w-0 -mt-4 min-h-[54px] px-2 py-1.5 rounded-full flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer shadow-lg ring-4 ${
                     isActive
-                      ? 'bg-[#14532d] text-white ring-[#bbf7d0] font-extrabold'
-                      : 'bg-[#14532d] hover:bg-[#0f3d21] text-white ring-[#f1f6f1] font-extrabold'
+                      ? 'bg-gradient-to-r from-[#b45309] to-[#d97706] text-white ring-[#fef3c7] font-extrabold'
+                      : 'bg-gradient-to-r from-[#b45309] to-[#d97706] hover:from-[#92400e] hover:to-[#b45309] text-white ring-[#f1f6f1] font-extrabold'
                   }`}
                 >
                   <Icon className="w-[19px] h-[19px] shrink-0" />

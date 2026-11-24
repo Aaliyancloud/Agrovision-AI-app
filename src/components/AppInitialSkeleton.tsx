@@ -1,107 +1,51 @@
 import React from 'react';
 import { AgroVisionLogo } from './AgroVisionLogo';
+import { Leaf, Sprout, Sparkles } from 'lucide-react';
 
 export const AppInitialSkeleton: React.FC = () => {
   return (
     <div
       aria-busy="true"
-      aria-label="Loading AgroVision AI"
-      className="min-h-screen w-full bg-[#f1f6f1] text-[#13281c] flex flex-col"
+      aria-label="Loading AgroVision AI for Aaryan Awan"
+      className="fixed inset-0 z-[100] bg-[#14532d] text-white flex flex-col items-center justify-center p-6 select-none animate-in fade-in duration-300"
     >
-      {/* Top Bar Skeleton */}
-      <div className="sticky top-0 z-20 h-14 lg:h-16 bg-white/95 border-b border-[#cbdcd0] px-4 lg:px-6 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <AgroVisionLogo className="w-8 h-8 lg:w-9 lg:h-9 shrink-0" />
-          <div className="space-y-1.5">
-            <div className="h-3.5 w-28 rounded-md native-shimmer" />
-            <div className="h-2 w-20 rounded-md native-shimmer" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(22,101,52,0.8)_0%,rgba(15,61,33,0.95)_100%)] pointer-events-none" />
+
+      <div className="relative z-10 flex flex-col items-center max-w-sm w-full text-center space-y-6">
+        {/* Animated Emblem Ring */}
+        <div className="relative flex items-center justify-center">
+          <div className="absolute -inset-4 rounded-full bg-[#fef3c7]/20 animate-ping opacity-75" />
+          <div className="absolute -inset-8 rounded-full bg-[#166534]/40 animate-pulse" />
+          <div className="relative w-24 h-24 rounded-3xl bg-[#faf8f2] shadow-2xl flex items-center justify-center border-2 border-[#fef3c7]/60">
+            <AgroVisionLogo className="w-16 h-16 text-[#14532d]" />
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-xl native-shimmer" />
-          <div className="h-8 w-16 rounded-xl native-shimmer" />
-          <div className="h-8 w-14 rounded-xl native-shimmer" />
-        </div>
-      </div>
 
-      {/* Main Content Skeleton */}
-      <div className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 pt-4 pb-24 space-y-4">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          <div className="lg:col-span-7 space-y-3">
-            {/* Hero Card Skeleton */}
-            <div className="rounded-3xl bg-[#14532d] p-4 sm:p-5 space-y-4 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-2 flex-1">
-                  <div className="h-3 w-32 rounded bg-white/15 animate-pulse" />
-                  <div className="h-6 w-56 rounded-lg bg-white/20 animate-pulse" />
-                </div>
-                <div className="flex gap-1.5">
-                  <div className="w-14 h-12 rounded-2xl bg-white/15 animate-pulse" />
-                  <div className="w-14 h-12 rounded-2xl bg-white/15 animate-pulse" />
-                </div>
-              </div>
-
-              <div className="rounded-2xl bg-[#0f3d21] p-3 space-y-2.5">
-                <div className="flex justify-between">
-                  <div className="h-3 w-36 rounded bg-white/15" />
-                  <div className="h-3 w-16 rounded bg-white/15" />
-                </div>
-                <div className="grid grid-cols-4 gap-1.5">
-                  <div className="h-10 rounded-xl bg-white/15" />
-                  <div className="h-10 rounded-xl bg-white/15" />
-                  <div className="h-10 rounded-xl bg-white/15" />
-                  <div className="h-10 rounded-xl bg-white/15" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="h-11 rounded-2xl bg-[#166534] border border-white/20" />
-                <div className="h-11 rounded-2xl bg-white/90" />
-              </div>
-            </div>
-
-            {/* 4 Branches Skeleton */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {[0, 1, 2, 3].map((idx) => (
-                <div
-                  key={idx}
-                  className="p-3 rounded-2xl bg-white border border-[#cbdcd0] space-y-2 shadow-xs"
-                >
-                  <div className="w-8 h-8 rounded-xl native-shimmer" />
-                  <div className="h-3.5 w-20 rounded native-shimmer" />
-                  <div className="h-2.5 w-14 rounded native-shimmer" />
-                </div>
-              ))}
-            </div>
-
-            {/* Recent Leaf Checks Skeleton */}
-            <div className="rounded-2xl bg-white border border-[#cbdcd0] p-4 space-y-3">
-              <div className="h-4 w-36 rounded native-shimmer" />
-              <div className="h-16 w-full rounded-xl native-shimmer" />
-            </div>
+        {/* Branded Title & Grower Greeting */}
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#fef3c7] text-[#78350f] text-xs font-mono font-bold shadow-xs">
+            <Sparkles className="w-3.5 h-3.5 text-[#b45309]" />
+            <span>AGROVISION AI · 2026</span>
           </div>
 
-          <div className="hidden lg:block lg:col-span-5 space-y-4">
-            <div className="rounded-2xl bg-white border border-[#cbdcd0] p-4 space-y-3">
-              <div className="h-4 w-40 rounded native-shimmer" />
-              <div className="h-24 w-full rounded-xl native-shimmer" />
-            </div>
-            <div className="rounded-2xl bg-white border border-[#cbdcd0] p-4 space-y-2.5">
-              <div className="h-4 w-36 rounded native-shimmer" />
-              <div className="h-12 w-full rounded-xl native-shimmer" />
-              <div className="h-12 w-full rounded-xl native-shimmer" />
-            </div>
+          <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            Hello, Aaryan Awan!
+          </h1>
+
+          <p className="text-xs sm:text-sm text-[#dcfce7] font-medium max-w-xs mx-auto leading-relaxed">
+            How are you and how is your plant journey today? Loading your tomato field intelligence...
+          </p>
+        </div>
+
+        {/* Loading Progress Bar */}
+        <div className="w-full max-w-[220px] space-y-2 pt-2">
+          <div className="w-full h-2 rounded-full bg-black/30 overflow-hidden p-0.5 border border-white/15">
+            <div className="h-full rounded-full bg-gradient-to-r from-[#fef3c7] to-[#b45309] animate-[shimmer_1.5s_infinite]" style={{ width: '75%' }} />
+          </div>
+          <div className="text-[10px] font-mono text-[#bbf7d0] tracking-wider uppercase">
+            Preparing your greenhouse...
           </div>
         </div>
-      </div>
-
-      {/* Bottom Dock Skeleton */}
-      <div className="lg:hidden fixed bottom-3 left-3 right-3 max-w-[440px] mx-auto h-14 rounded-full bg-white/95 border border-[#cbdcd0] px-3 flex items-center justify-between gap-2 shadow-md">
-        <div className="flex-1 h-9 rounded-full native-shimmer" />
-        <div className="flex-1 h-9 rounded-full native-shimmer" />
-        <div className="flex-1 -mt-4 h-12 rounded-full bg-[#14532d]/90" />
-        <div className="flex-1 h-9 rounded-full native-shimmer" />
-        <div className="flex-1 h-9 rounded-full native-shimmer" />
       </div>
     </div>
   );

@@ -42,7 +42,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     signInWithEmailAccount,
     resendVerification,
     sendPasswordReset,
-    signOutAccount
+    signOutAccount,
+    updateGrowerProfile
   } = useAuth();
 
   const [mode, setMode] = useState<AuthMode>('signin');
@@ -51,6 +52,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [editName, setEditName] = useState(activeProfile?.displayName || 'Aaryan Awan');
+
+  useEffect(() => {
+    if (activeProfile?.displayName) {
+      setEditName(activeProfile.displayName);
+    }
+  }, [activeProfile?.displayName]);
+
+  const handleDpUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        updateGrowerProfile(editName, result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -191,9 +212,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
           {activeProfile ? (
             <div className="space-y-3.5">
-              <div className="p-4 rounded-2xl bg-white border border-[#cbdcd0] space-y-2.5 shadow-xs">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
+              <div className="p-4 rounded-2xl bg-white border border-[#cbdcd0] space-y-3.5 shadow-xs">
+                <div className="flex items-center gap-3">
+                  <div className="relative group w-14 h-14 rounded-2xl bg-[#edf5ef] border-2 border-[#14532d] overflow-hidden flex items-center justify-center shrink-0 shadow-xs">
+                    {activeProfile.photoURL ? (
+                      <img src={activeProfile.photoURL} alt="Display Picture" className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-7 h-7 text-[#14532d]" />
+                    )}
+                    <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] font-bold cursor-pointer transition-opacity">
+                      Upload DP
+                      <input type="file" accept="image/*" onChange={handleDpUpload} className="hidden" />
+                    </label>
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] font-mono font-bold text-[#14532d]">
+                      {isUrdu ? 'کاشتکار پروفایل' : 'Grower Profile'}
+                    </div>
                     <div className="font-display font-bold text-sm text-[#13281c] truncate">
                       {activeProfile.displayName}
                     </div>
@@ -201,35 +237,36 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                       {activeProfile.email}
                     </div>
                   </div>
-                  {activeProfile.source === 'firebase' ? (
-                    <Cloud className="w-4 h-4 text-[#166534] shrink-0" />
-                  ) : (
-                    <Smartphone className="w-4 h-4 text-[#b45309] shrink-0" />
-                  )}
                 </div>
 
-                {user && (
-                  <div className="pt-2 border-t border-[#cbdcd0]/60 flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-mono">
-                      {user.emailVerified
-                        ? isUrdu
-                          ? 'ای میل تصدیق شدہ'
-                          : 'Email Verified'
-                        : isUrdu
-                        ? 'ای میل کی تصدیق باقی ہے'
-                        : 'Email verification pending'}
-                    </span>
-                    {!user.emailVerified && (
-                      <button
-                        type="button"
-                        onClick={() => void resendVerification()}
-                        className="text-[11px] font-bold text-[#b45309] hover:underline cursor-pointer"
-                      >
-                        {isUrdu ? 'لنک دوبارہ بھیجیں' : 'Send link again'}
-                      </button>
-                    )}
+                <div className="space-y-1 pt-2 border-t border-[#cbdcd0]/60">
+                  <label className="block text-[10px] font-bold text-[#13281c] uppercase tracking-wider">
+                    {isUrdu ? 'پروفائل کا نام تبدیل کریں' : 'Update Grower Name'}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="Aaryan Awan"
+                      className="flex-1 min-h-[36px] px-3 py-1.5 rounded-xl bg-[#faf8f2] border border-[#cbdcd0] text-xs font-bold text-[#13281c] focus:outline-none focus:ring-2 focus:ring-[#166534]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => updateGrowerProfile(editName)}
+                      className="px-3.5 py-1.5 rounded-xl bg-[#14532d] hover:bg-[#0f3d21] text-white text-xs font-bold cursor-pointer shadow-xs"
+                    >
+                      {isUrdu ? 'محفوظ' : 'Save'}
+                    </button>
                   </div>
-                )}
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-[#fef3c7]/70 border border-[#d97706]/50 text-[#78350f] text-xs space-y-1">
+                <div className="font-bold">Hello {activeProfile.displayName}, how are you?</div>
+                <div className="text-[11px] opacity-90 leading-relaxed">
+                  What is your plant journey plan today? Your leaf checks, plant notes, and grower records are safely stored on this phone.
+                </div>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-[#edf5ef] border border-[#cbdcd0] flex items-start gap-2.5">
