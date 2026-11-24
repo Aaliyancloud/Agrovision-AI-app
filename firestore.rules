@@ -1,0 +1,281 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Safety Net: Default-deny everything unless explicitly permitted below
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Startup Firestore connection check (read-only)
+    match /test/connection {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Global Security Primitives
+    // -------------------------------------------------------------------------
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'yousaaf.awan56@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function hasValidParentUser(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId));
+    }
+
+    // -------------------------------------------------------------------------
+    // Entity Validation Blueprints
+    // -------------------------------------------------------------------------
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'role', 'xp', 'dailyStreak', 'longestStreak', 'streakFreezes', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'uid', 'email', 'displayName', 'role', 'xp', 'dailyStreak', 'longestStreak',
+          'lastCompletedDate', 'lastBonusDate', 'lastBonusAmount', 'streakFreezes',
+          'lastFreezeUsedDate', 'dailyMissionsDate', 'completedMissions',
+          'awardedActions', 'unlockedBadges', 'createdAt', 'updatedAt'
+        ])
+        && data.uid is string
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.role in ['grower', 'admin']
+        && data.xp is number && data.xp >= 0 && data.xp <= 100000
+        && data.dailyStreak is number && data.dailyStreak >= 0 && data.dailyStreak <= 3650
+        && data.longestStreak is number && data.longestStreak >= 0 && data.longestStreak <= 3650
+        && data.streakFreezes is number && data.streakFreezes >= 0 && data.streakFreezes <= 2
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && (!('email' in data) || (data.email is string && data.email.size() <= 320))
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 120))
+        && (!('lastCompletedDate' in data) || data.lastCompletedDate == null || (data.lastCompletedDate is string && data.lastCompletedDate.size() <= 20))
+        && (!('lastBonusDate' in data) || data.lastBonusDate == null || (data.lastBonusDate is string && data.lastBonusDate.size() <= 20))
+        && (!('lastBonusAmount' in data) || (data.lastBonusAmount is number && data.lastBonusAmount >= 0 && data.lastBonusAmount <= 100))
+        && (!('lastFreezeUsedDate' in data) || data.lastFreezeUsedDate == null || (data.lastFreezeUsedDate is string && data.lastFreezeUsedDate.size() <= 20))
+        && (!('dailyMissionsDate' in data) || (data.dailyMissionsDate is string && data.dailyMissionsDate.size() <= 20))
+        && (!('completedMissions' in data) || (data.completedMissions is map && data.completedMissions.keys().size() <= 12))
+        && (!('awardedActions' in data) || (data.awardedActions is map && data.awardedActions.keys().size() <= 200))
+        && (!('unlockedBadges' in data) || (data.unlockedBadges is list && data.unlockedBadges.size() <= 12 && (data.unlockedBadges.size() == 0 || data.unlockedBadges[0] is string)));
+    }
+
+    function isValidLeafScan(data, userId, scanId) {
+      return data.keys().hasAll(['id', 'uid', 'createdAt', 'source', 'diseaseId', 'diseaseName', 'confidence', 'severity', 'isTomatoLeaf', 'summary', 'serverCreatedAt'])
+        && data.keys().hasOnly([
+          'id', 'uid', 'plantId', 'createdAt', 'source', 'diseaseId', 'diseaseName',
+          'scientificName', 'confidence', 'severity', 'isTomatoLeaf', 'validationMessage',
+          'summary', 'organicTreatment', 'thumbnailUrl', 'sensorSnapshot', 'serverCreatedAt'
+        ])
+        && data.id is string && isValidId(data.id) && data.id == scanId
+        && data.uid is string && isValidId(data.uid) && data.uid == userId
+        && data.createdAt is string && data.createdAt.size() <= 64
+        && data.source in ['upload', 'camera', 'sample']
+        && data.diseaseId is string && data.diseaseId.size() <= 80
+        && data.diseaseName is string && data.diseaseName.size() <= 140
+        && data.confidence is number && data.confidence >= 0 && data.confidence <= 100
+        && data.severity in ['None', 'Mild', 'Moderate', 'Severe']
+        && data.isTomatoLeaf is bool
+        && data.summary is string && data.summary.size() <= 1200
+        && data.serverCreatedAt is timestamp
+        && (!('plantId' in data) || data.plantId == null || (data.plantId is string && data.plantId.size() <= 128))
+        && (!('scientificName' in data) || (data.scientificName is string && data.scientificName.size() <= 140))
+        && (!('validationMessage' in data) || (data.validationMessage is string && data.validationMessage.size() <= 500))
+        && (!('thumbnailUrl' in data) || (data.thumbnailUrl is string && data.thumbnailUrl.size() <= 220000))
+        && (!('organicTreatment' in data) || (data.organicTreatment is list && data.organicTreatment.size() <= 8 && (data.organicTreatment.size() == 0 || data.organicTreatment[0] is string)))
+        && (!('sensorSnapshot' in data) || (data.sensorSnapshot is map && data.sensorSnapshot.keys().size() <= 8));
+    }
+
+    function isValidPlantEntry(data, userId, plantId) {
+      return data.keys().hasAll(['id', 'uid', 'name', 'stage', 'plantedDate', 'healthStatus', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'id', 'uid', 'name', 'cultivar', 'stage', 'plantedDate', 'healthStatus',
+          'locationNote', 'thumbnailUrl', 'latestNote', 'linkedScanIds', 'createdAt', 'updatedAt'
+        ])
+        && data.id is string && isValidId(data.id) && data.id == plantId
+        && data.uid is string && isValidId(data.uid) && data.uid == userId
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && data.stage in ['seedling', 'vegetative', 'flowering', 'fruiting']
+        && data.plantedDate is string && data.plantedDate.size() >= 4 && data.plantedDate.size() <= 32
+        && data.healthStatus in ['thriving', 'watch', 'recovering']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && (!('cultivar' in data) || (data.cultivar is string && data.cultivar.size() <= 100))
+        && (!('locationNote' in data) || (data.locationNote is string && data.locationNote.size() <= 140))
+        && (!('thumbnailUrl' in data) || (data.thumbnailUrl is string && data.thumbnailUrl.size() <= 220000))
+        && (!('latestNote' in data) || (data.latestNote is string && data.latestNote.size() <= 600))
+        && (!('linkedScanIds' in data) || (data.linkedScanIds is list && data.linkedScanIds.size() <= 10 && (data.linkedScanIds.size() == 0 || data.linkedScanIds[0] is string)));
+    }
+
+    function isValidLearningProgress(data, userId, moduleId) {
+      return data.keys().hasAll(['moduleId', 'uid', 'completed', 'bookmarked', 'updatedAt'])
+        && data.keys().hasOnly(['moduleId', 'uid', 'completed', 'bookmarked', 'updatedAt'])
+        && data.moduleId is string && isValidId(data.moduleId) && data.moduleId == moduleId
+        && data.uid is string && isValidId(data.uid) && data.uid == userId
+        && data.completed is bool
+        && data.bookmarked is bool
+        && data.updatedAt is timestamp;
+    }
+
+    // -------------------------------------------------------------------------
+    // Collections & Subcollections
+    // -------------------------------------------------------------------------
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && (isOwner(adminId) || isAdmin()) && isValidId(adminId);
+      allow list, write: if false;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isSignedIn()
+        && isValidId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && isOwner(userId)
+        && incoming().role == 'grower'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isSignedIn()
+        && isValidId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && (
+          isAdmin() ||
+          (
+            isOwner(userId)
+            && incoming().uid == existing().uid
+            && incoming().role == existing().role
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'email', 'displayName', 'xp', 'dailyStreak', 'longestStreak',
+              'lastCompletedDate', 'lastBonusDate', 'lastBonusAmount', 'streakFreezes',
+              'lastFreezeUsedDate', 'dailyMissionsDate', 'completedMissions',
+              'awardedActions', 'unlockedBadges', 'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isAdmin() && isValidId(userId);
+
+      match /scans/{scanId} {
+        allow get: if isValidId(userId) && isValidId(scanId) && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+
+        allow create: if isSignedIn()
+          && isValidId(userId)
+          && isValidId(scanId)
+          && isValidLeafScan(incoming(), userId, scanId)
+          && isOwner(userId)
+          && hasValidParentUser(userId)
+          && incoming().serverCreatedAt == request.time;
+
+        allow update: if isSignedIn()
+          && isValidId(userId)
+          && isValidId(scanId)
+          && isValidLeafScan(incoming(), userId, scanId)
+          && (
+            isAdmin() ||
+            (
+              isOwner(userId)
+              && incoming().id == existing().id
+              && incoming().uid == existing().uid
+              && incoming().serverCreatedAt == existing().serverCreatedAt
+              && incoming().diff(existing()).affectedKeys().hasOnly(['plantId'])
+            )
+          );
+
+        allow delete: if isValidId(userId) && isValidId(scanId) && (isOwner(userId) || isAdmin());
+      }
+
+      match /plants/{plantId} {
+        allow get: if isValidId(userId) && isValidId(plantId) && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+
+        allow create: if isSignedIn()
+          && isValidId(userId)
+          && isValidId(plantId)
+          && isValidPlantEntry(incoming(), userId, plantId)
+          && isOwner(userId)
+          && hasValidParentUser(userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+
+        allow update: if isSignedIn()
+          && isValidId(userId)
+          && isValidId(plantId)
+          && isValidPlantEntry(incoming(), userId, plantId)
+          && (
+            isAdmin() ||
+            (
+              isOwner(userId)
+              && incoming().id == existing().id
+              && incoming().uid == existing().uid
+              && incoming().createdAt == existing().createdAt
+              && incoming().updatedAt == request.time
+              && incoming().diff(existing()).affectedKeys().hasOnly([
+                'name', 'cultivar', 'stage', 'plantedDate', 'healthStatus',
+                'locationNote', 'thumbnailUrl', 'latestNote', 'linkedScanIds', 'updatedAt'
+              ])
+            )
+          );
+
+        allow delete: if isValidId(userId) && isValidId(plantId) && (isOwner(userId) || isAdmin());
+      }
+
+      match /learningProgress/{moduleId} {
+        allow get: if isValidId(userId) && isValidId(moduleId) && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+
+        allow create: if isSignedIn()
+          && isValidId(userId)
+          && isValidId(moduleId)
+          && isValidLearningProgress(incoming(), userId, moduleId)
+          && isOwner(userId)
+          && hasValidParentUser(userId)
+          && incoming().updatedAt == request.time;
+
+        allow update: if isSignedIn()
+          && isValidId(userId)
+          && isValidId(moduleId)
+          && isValidLearningProgress(incoming(), userId, moduleId)
+          && (
+            isAdmin() ||
+            (
+              isOwner(userId)
+              && incoming().moduleId == existing().moduleId
+              && incoming().uid == existing().uid
+              && incoming().updatedAt == request.time
+              && incoming().diff(existing()).affectedKeys().hasOnly(['completed', 'bookmarked', 'updatedAt'])
+            )
+          );
+
+        allow delete: if isValidId(userId) && isValidId(moduleId) && (isOwner(userId) || isAdmin());
+      }
+    }
+  }
+}

@@ -1,0 +1,2 @@
+-keep class com.agrovision.ai.model.** { *; }
+-dontwarn com.google.android.gms.**

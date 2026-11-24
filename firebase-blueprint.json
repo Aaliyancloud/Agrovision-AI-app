@@ -1,0 +1,263 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Tomato grower profile, XP progress, streak freezes, and event-driven daily mission tracking.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 320
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "role": {
+          "type": "string",
+          "enum": ["grower", "admin"]
+        },
+        "xp": {
+          "type": "number"
+        },
+        "dailyStreak": {
+          "type": "number"
+        },
+        "longestStreak": {
+          "type": "number"
+        },
+        "lastCompletedDate": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "lastBonusDate": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "lastBonusAmount": {
+          "type": "number"
+        },
+        "streakFreezes": {
+          "type": "number"
+        },
+        "lastFreezeUsedDate": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "dailyMissionsDate": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "completedMissions": {
+          "type": "object"
+        },
+        "awardedActions": {
+          "type": "object"
+        },
+        "unlockedBadges": {
+          "type": "array"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "role", "xp", "dailyStreak", "longestStreak", "streakFreezes", "createdAt", "updatedAt"]
+    },
+    "LeafScan": {
+      "title": "LeafScan",
+      "description": "Verified tomato leaf scan result with pathology findings and root-zone sensor snapshot.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "plantId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "source": {
+          "type": "string",
+          "enum": ["upload", "camera", "sample"]
+        },
+        "diseaseId": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "diseaseName": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "scientificName": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["None", "Mild", "Moderate", "Severe"]
+        },
+        "isTomatoLeaf": {
+          "type": "boolean"
+        },
+        "validationMessage": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 1200
+        },
+        "organicTreatment": {
+          "type": "array"
+        },
+        "thumbnailUrl": {
+          "type": "string",
+          "maxLength": 220000
+        },
+        "serverCreatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "uid", "createdAt", "source", "diseaseId", "diseaseName", "confidence", "severity", "isTomatoLeaf", "summary", "serverCreatedAt"]
+    },
+    "PlantJourneyEntry": {
+      "title": "PlantJourneyEntry",
+      "description": "Tracked tomato plant in the user's Growth Journey with stage, cultivar, notes, and linked scan IDs.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "cultivar": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "stage": {
+          "type": "string",
+          "enum": ["seedling", "vegetative", "flowering", "fruiting"]
+        },
+        "plantedDate": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "healthStatus": {
+          "type": "string",
+          "enum": ["thriving", "watch", "recovering"]
+        },
+        "locationNote": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "thumbnailUrl": {
+          "type": "string",
+          "maxLength": 220000
+        },
+        "latestNote": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "linkedScanIds": {
+          "type": "array"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "uid", "name", "stage", "plantedDate", "healthStatus", "createdAt", "updatedAt"]
+    },
+    "LearningProgress": {
+      "title": "LearningProgress",
+      "description": "User progress and bookmarks across AgroVision Learning Centre modules.",
+      "type": "object",
+      "properties": {
+        "moduleId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "bookmarked": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["moduleId", "uid", "completed", "bookmarked", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private grower profile, XP state, daily missions, and streak freezes."
+    },
+    "/users/{userId}/scans/{scanId}": {
+      "schema": { "$ref": "#/entities/LeafScan" },
+      "description": "Saved leaf pathology scans belonging to the grower."
+    },
+    "/users/{userId}/plants/{plantId}": {
+      "schema": { "$ref": "#/entities/PlantJourneyEntry" },
+      "description": "Tracked tomato plants in the Plant Growth Journey belonging to the grower."
+    },
+    "/users/{userId}/learningProgress/{moduleId}": {
+      "schema": { "$ref": "#/entities/LearningProgress" },
+      "description": "Learning Centre completion & bookmark records per grower."
+    }
+  }
+}
