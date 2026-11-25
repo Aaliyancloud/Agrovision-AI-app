@@ -36,9 +36,8 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   useEffect(() => {
-    const isRtl = language === 'ur';
     document.documentElement.lang = language;
-    document.documentElement.dir = isRtl ? 'rtl' : 'ltr';
+    document.documentElement.dir = 'ltr';
   }, [language]);
 
   const value: LanguageContextType = {

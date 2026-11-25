@@ -2,7 +2,6 @@ import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowLeft,
-  ArrowRight,
   Award,
   BookOpen,
   Bot,
@@ -12,7 +11,6 @@ import {
   ChevronRight,
   ChevronUp,
   ClipboardList,
-  Cloud,
   Compass,
   Download,
   Droplets,
@@ -20,6 +18,7 @@ import {
   FlaskConical,
   Globe,
   Home,
+  LayoutDashboard,
   Leaf,
   Lightbulb,
   RefreshCw,
@@ -27,27 +26,31 @@ import {
   Shield,
   ShieldAlert,
   ShieldCheck,
+  Share2,
   SlidersHorizontal,
   Sprout,
+  Store,
   Trash2,
   Upload,
   User,
-  UserCheck,
   X,
-  Zap
+  Zap,
+  Check,
+  Copy
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { useSensors } from '../context/SensorContext';
 import { useScanHistory, ScanHistoryEntry } from '../context/ScanHistoryContext';
 import { usePlantJourney } from '../context/PlantJourneyContext';
+import { usePreferences } from '../context/PreferencesContext';
 import { MissionId, useXP } from '../context/XPContext';
 import {
   evaluateGrowthStageAlert,
   GROWTH_STAGE_CONFIGS,
   GrowthStage
 } from '../data/growthStageAlerts';
-import { getDailyAgriTip } from '../data/learningModules';
+import { LEARNING_MODULES, getDailyAgriTip } from '../data/learningModules';
 import { LiveWeatherSnapshot, WeatherAlertCard } from './WeatherAlertCard';
 import { SmartSensorSection } from './SmartSensorSection';
 import { FieldMessengerView } from './FieldMessengerView';
@@ -61,10 +64,17 @@ import { SwipeableRow } from './SwipeableRow';
 import { AppBotanicalBackdrop, HangingBranchMoss } from './BotanicalMotifs';
 import { PWAInstallButton } from './PWAInstallButton';
 import { hapticScanTap } from '../utils/haptics';
+import { buildWhatsAppShareUrl, buildWhatsAppSummaryText } from '../utils/whatsappShare';
 import type { DiagnosticExternalAction } from './DiagnosticStudio';
 
 const DiagnosticStudio = lazy(() =>
   import('./DiagnosticStudio').then((m) => ({ default: m.DiagnosticStudio }))
+);
+const MarketAndToolsView = lazy(() =>
+  import('./MarketAndToolsView').then((m) => ({ default: m.MarketAndToolsView }))
+);
+const AdminDashboardView = lazy(() =>
+  import('./AdminDashboardView').then((m) => ({ default: m.AdminDashboardView }))
 );
 
 export type AppTab =
@@ -73,10 +83,12 @@ export type AppTab =
   | 'scan'
   | 'care'
   | 'learn'
+  | 'mandi'
   | 'history'
   | 'messenger'
   | 'anatomy'
-  | 'profile';
+  | 'profile'
+  | 'admin';
 
 interface AgroVisionAppProps {
   initialTab?: AppTab;
@@ -158,11 +170,14 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
   initialAction = null
 }) => {
   const { isUrdu, toggleLanguage } = useLanguage();
-  const { activeProfile, cloudSyncStatus } = useAuth();
+  const { activeProfile } = useAuth();
   const { moistureEnabled, moisturePercent, phEnabled, soilPh } = useSensors();
   const { scans, removeScan, clearScans } = useScanHistory();
   const { plants } = usePlantJourney();
+  const { lowDataMode } = usePreferences();
   const {
+    xp,
+    level,
     completedMissions,
     dailyStreak,
     longestStreak,
@@ -192,6 +207,7 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
   const [historyFilter, setHistoryFilter] = useState<'all' | 'tomato' | 'other'>('all');
   const [historySearch, setHistorySearch] = useState('');
   const [detailScanId, setDetailScanId] = useState<string | null>(null);
+  const [copiedHistoryId, setCopiedHistoryId] = useState<string | null>(null);
   const [isDetectionSessionActive, setIsDetectionSessionActive] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -249,6 +265,53 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
     url.searchParams.delete('action');
     window.history.replaceState({}, '', url.pathname + url.search);
   }, [activeTab]);
+
+  // Keep Admin Dashboard telemetry synchronized whenever grower stats, scans, or plants change
+  useEffect(() => {
+    if (!activeProfile) return;
+    const sendTelemetry = () => {
+      void fetch('/api/users/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        keepalive: true,
+        body: JSON.stringify({
+          uid: activeProfile.uid,
+          displayName: activeProfile.displayName,
+          email: activeProfile.email,
+          phoneNumber: activeProfile.phoneNumber || '',
+          ...(activeProfile.photoURL ? { photoURL: activeProfile.photoURL } : {}),
+          provider: activeProfile.provider || (activeProfile.source === 'firebase' ? 'email' : 'device'),
+          emailVerified: activeProfile.emailVerified,
+          xp,
+          level,
+          dailyStreak,
+          scansCount: scans.length,
+          plantsCount: plants.length,
+          recentScans: scans.slice(0, 10).map((s) => ({
+            id: s.id,
+            diseaseName: s.diseaseName,
+            confidence: s.confidence,
+            isTomatoLeaf: s.isTomatoLeaf,
+            createdAt: s.createdAt
+          }))
+        })
+      }).catch(() => {
+        // ignore offline errors
+      });
+    };
+
+    const timer = window.setTimeout(sendTelemetry, 250);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        sendTelemetry();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [activeProfile, xp, level, dailyStreak, scans, plants.length]);
 
   const selectTab = (tab: AppTab, subAtlas?: 'guides' | 'atlas') => {
     if (tab !== 'history') {
@@ -329,7 +392,7 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
   const detailEntry: ScanHistoryEntry | null =
     detailScanId ? scans.find((s) => s.id === detailScanId) ?? null : null;
 
-  // Strictly event-driven daily missions (NO manual checkbox toggle)
+  // Strictly event-driven daily missions (5 missions/day max @ +20 XP = 100 XP/day)
   const missions: {
     id: MissionId;
     title: string;
@@ -345,7 +408,7 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
       howToComplete: isUrdu
         ? 'اسکینر سے حقیقی یا نمونہ پتہ تصدیق کروائیں'
         : 'Auto-completes on verified tomato scan',
-      xp: '+30 XP',
+      xp: '+20 XP',
       ctaLabel: isUrdu ? 'اسکین کریں' : 'Scan Leaf',
       onNavigate: () => launchCameraScan(),
       done: Boolean(completedMissions.scan_lower_leaf)
@@ -356,7 +419,7 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
       howToComplete: isUrdu
         ? 'مٹی انٹیلی جنس دیکھنے یا پروب سیٹ کرنے پر'
         : 'Auto-completes on Soil Hub lookup',
-      xp: '+35 XP',
+      xp: '+20 XP',
       ctaLabel: isUrdu ? 'مٹی دیکھیں' : 'Open Soil Hub',
       onNavigate: () => selectTab('care'),
       done: Boolean(completedMissions.check_soil_sensors)
@@ -367,7 +430,7 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
       howToComplete: isUrdu
         ? 'اٹلس میں کسی بیماری کی تفصیل کھولنے پر'
         : 'Auto-completes when viewing an entry',
-      xp: '+25 XP',
+      xp: '+20 XP',
       ctaLabel: isUrdu ? 'اٹلس کھولیں' : 'Open Atlas',
       onNavigate: () => selectTab('learn', 'atlas'),
       done: Boolean(completedMissions.explore_library)
@@ -378,10 +441,21 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
       howToComplete: isUrdu
         ? 'لرننگ سبق یا اے آئی چیٹ استعمال کرنے پر'
         : 'Auto-completes via Guide or AI Chat',
-      xp: '+25 XP',
+      xp: '+20 XP',
       ctaLabel: isUrdu ? 'سیکھیں' : 'Open Learn',
       onNavigate: () => selectTab('learn', 'guides'),
       done: Boolean(completedMissions.learning_activity)
+    },
+    {
+      id: 'daily_plant_care',
+      title: isUrdu ? 'پودوں کی آبپاشی، کھاد یا سفر اپڈیٹ کریں' : 'Log plant watering, fertilizer, or growth care',
+      howToComplete: isUrdu
+        ? 'شیڈول یا میرے پودے میں روزانہ دیکھ بھال محفوظ کرنے پر'
+        : 'Auto-completes when logging daily care',
+      xp: '+20 XP',
+      ctaLabel: isUrdu ? 'دیکھ بھال' : 'My Plants',
+      onNavigate: () => selectTab('plants'),
+      done: Boolean(completedMissions.daily_plant_care)
     }
   ];
 
@@ -391,7 +465,7 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
     56 +
       (moistureEnabled && moisturePercent >= 45 && moisturePercent <= 68 ? 16 : 6) +
       (phEnabled && soilPh >= 5.8 && soilPh <= 7.0 ? 14 : 4) +
-      completedCount * 4
+      completedCount * 3
   );
 
   const stageAlert = evaluateGrowthStageAlert(growthStage, {
@@ -422,23 +496,37 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
       ? isUrdu
         ? 'لرننگ سینٹر و اٹلس'
         : 'Learning & Atlas'
+      : activeTab === 'mandi'
+      ? isUrdu
+        ? 'منڈی ریٹس و ٹینکی حساب'
+        : 'Market & Tools'
       : activeTab === 'history'
       ? isUrdu
         ? 'فیلڈ اسکین لاگ'
         : 'Field Scan Log'
+      : activeTab === 'profile'
+      ? isUrdu
+        ? 'کاشتکار پروفائل'
+        : 'Grower Profile'
+      : activeTab === 'admin'
+      ? isUrdu
+        ? 'ایڈمن پینل'
+        : 'Admin Panel'
       : isUrdu
-      ? 'اے آئی پلانٹ ہیلتھ ماہر'
-      : 'AI Assistant';
+      ? 'ٹماٹر زرعی مشیر'
+      : 'Agronomic Advisor';
 
   const desktopNavItems: { id: AppTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'home', label: isUrdu ? 'ہوم' : 'Home', icon: Home },
     { id: 'plants', label: isUrdu ? 'پودے' : 'Plants', icon: Sprout },
     { id: 'scan', label: isUrdu ? 'اسکین' : 'Scanner', icon: Camera },
+    { id: 'mandi', label: isUrdu ? 'منڈی و ٹولز' : 'Market & Tools', icon: Store },
     { id: 'care', label: isUrdu ? 'مٹی و موسم' : 'Soil & Climate', icon: Droplets },
     { id: 'learn', label: isUrdu ? 'لرننگ' : 'Learn & Atlas', icon: BookOpen },
-    { id: 'messenger', label: isUrdu ? 'اے آئی ماہر' : 'AI Assistant', icon: Bot },
+    { id: 'messenger', label: isUrdu ? 'زرعی مشیر' : 'Advisor', icon: Bot },
     { id: 'history', label: isUrdu ? 'ریکارڈ' : 'Field Log', icon: ClipboardList },
-    { id: 'profile', label: isUrdu ? 'پروفائل' : 'Profile', icon: User }
+    { id: 'profile', label: isUrdu ? 'پروفائل' : 'Profile', icon: User },
+    { id: 'admin', label: isUrdu ? 'ایڈمن' : 'Admin', icon: LayoutDashboard }
   ];
 
   const mobileDockItems: {
@@ -447,20 +535,20 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
     icon: React.ComponentType<{ className?: string }>;
   }[] = [
     { id: 'home', label: isUrdu ? 'ہوم' : 'Home', icon: Home },
-    { id: 'plants', label: isUrdu ? 'پودے' : 'Plants', icon: Sprout },
+    { id: 'mandi', label: isUrdu ? 'منڈی' : 'Market', icon: Store },
     { id: 'scan', label: isUrdu ? 'اسکین' : 'Scan', icon: Camera },
-    { id: 'messenger', label: isUrdu ? 'اے آئی' : 'AI Chat', icon: Bot },
+    { id: 'messenger', label: isUrdu ? 'مشیر' : 'Advisor', icon: Bot },
     { id: 'profile', label: isUrdu ? 'پروفائل' : 'Profile', icon: User }
   ];
 
   return (
     <div
-      dir={isUrdu ? 'rtl' : 'ltr'}
+      dir="ltr"
       className={`min-h-screen w-full bg-[#f1f6f1] text-[#13281c] flex flex-col relative overflow-x-clip font-sans selection:bg-[#edf5ef] selection:text-[#14532d] ${
         isUrdu ? 'font-urdu' : ''
       }`}
     >
-      <AppBotanicalBackdrop />
+      {!lowDataMode && <AppBotanicalBackdrop />}
 
       <input
         ref={fileInputRef}
@@ -525,34 +613,8 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
             })}
           </nav>
 
-          {/* Zone 3: Grower Account, Rank/Streak, Language & App Install */}
+          {/* Zone 3: Rank/Streak, Language & App Install */}
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsAuthModalOpen(true)}
-              className="min-h-[36px] px-3 py-1 rounded-xl bg-[#faf8f2] hover:bg-[#edf5ef] border border-[#cbdcd0] text-xs font-bold text-[#13281c] inline-flex items-center gap-1.5 cursor-pointer"
-            >
-              {activeProfile ? (
-                <>
-                  <Cloud
-                    className={`w-3.5 h-3.5 ${
-                      cloudSyncStatus === 'synced' || cloudSyncStatus === 'device'
-                        ? 'text-[#166534]'
-                        : 'text-[#b45309]'
-                    }`}
-                  />
-                  <span className="max-w-[90px] truncate">
-                    {activeProfile.displayName || activeProfile.email?.split('@')[0] || 'Grower'}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <UserCheck className="w-3.5 h-3.5 text-[#14532d]" />
-                  <span>{isUrdu ? 'سائن ان' : 'Sign In'}</span>
-                </>
-              )}
-            </button>
-
             <NavbarBadgeButton
               isOpen={isLevelModalOpen}
               onOpen={() => setIsLevelModalOpen(true)}
@@ -584,7 +646,7 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
               onClick={() => setDetailScanId(null)}
               className="min-h-[42px] inline-flex items-center gap-1.5 text-sm font-bold text-[#14532d] cursor-pointer min-w-0"
             >
-              {isUrdu ? <ArrowRight className="w-4 h-4 shrink-0" /> : <ArrowLeft className="w-4 h-4 shrink-0" />}
+              <ArrowLeft className="w-4 h-4 shrink-0" />
               <span className="truncate">{isUrdu ? 'فیلڈ لاگ' : 'Field Log'}</span>
             </button>
           ) : (
@@ -604,24 +666,6 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
           )}
 
           <div className="flex items-center gap-1 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsAuthModalOpen(true)}
-              aria-label={activeProfile ? 'Profile & Sync' : 'Sign In'}
-              className="min-h-[34px] min-w-[34px] px-1.5 rounded-xl bg-[#faf8f2] border border-[#cbdcd0] text-[#14532d] flex items-center justify-center cursor-pointer"
-            >
-              {activeProfile ? (
-                <Cloud
-                  className={`w-4 h-4 ${
-                    cloudSyncStatus === 'synced' || cloudSyncStatus === 'device'
-                      ? 'text-[#166534]'
-                      : 'text-[#b45309]'
-                  }`}
-                />
-              ) : (
-                <UserCheck className="w-4 h-4" />
-              )}
-            </button>
 
             <NavbarBadgeButton
               isOpen={isLevelModalOpen}
@@ -993,25 +1037,25 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
                   <div className="font-display text-xs font-extrabold text-[#13281c] relative z-10">
                     {isUrdu ? 'کورسز و اٹلس' : 'Courses & Atlas'}
                   </div>
-                  <div className="font-mono text-[10px] text-[#5b7463] mt-0.5 relative z-10">
-                    10 {isUrdu ? 'اسباق' : 'Lessons'} · 10 {isUrdu ? 'امراض' : 'Diseases'}
+                  <div className="font-mono text-[10px] text-[#5b7463] mt-0.5 relative z-10 tabular-nums">
+                    {LEARNING_MODULES.length} {isUrdu ? 'اسباق' : 'Lessons'} · 10 {isUrdu ? 'امراض' : 'Diseases'}
                   </div>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => selectTab('history')}
+                  onClick={() => selectTab('mandi')}
                   className="relative overflow-hidden p-3 rounded-2xl bg-white border border-[#cbdcd0] hover:border-[#14532d] text-start transition-colors cursor-pointer shadow-xs group"
                 >
                   <HangingBranchMoss variant={3} />
-                  <div className="w-8 h-8 rounded-xl bg-[#edf5ef] text-[#14532d] flex items-center justify-center mb-1.5 relative z-10">
-                    <ClipboardList className="w-4 h-4" />
+                  <div className="w-8 h-8 rounded-xl bg-[#fef3c7] text-[#b45309] flex items-center justify-center mb-1.5 relative z-10">
+                    <Store className="w-4 h-4" />
                   </div>
                   <div className="font-display text-xs font-extrabold text-[#13281c] relative z-10">
-                    {isUrdu ? 'پتا ریکارڈ' : 'Leaf Log'}
+                    {isUrdu ? 'منڈی و ٹینکی ٹول' : 'Mandi & Tanki'}
                   </div>
-                  <div className="font-mono text-[10px] text-[#5b7463] mt-0.5 tabular-nums relative z-10">
-                    {scans.length} {isUrdu ? 'محفوظ' : 'Saved'}
+                  <div className="font-mono text-[10px] text-[#5b7463] mt-0.5 relative z-10">
+                    {isUrdu ? 'روزانہ ریٹ · حساب' : 'PKR Rates · Dosage'}
                   </div>
                 </button>
               </div>
@@ -1207,7 +1251,7 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
                     {[1, 2, 3, 4, 5].map((dayNum) => {
                       const reached = dailyStreak >= dayNum;
                       const isNext = !hasCompletedMissionToday && dailyStreak + 1 === dayNum;
-                      const dayBonus = Math.min(50, 10 + dayNum * 5);
+                      const dayBonus = Math.min(25, dayNum * 5);
                       return (
                         <div
                           key={dayNum}
@@ -1325,6 +1369,15 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
           </div>
         )}
 
+        {/* PAKISTAN SABZI MANDI RATES, SPRAY CALCULATOR & SEASONS */}
+        {activeTab === 'mandi' && (
+          <div key="mandi" className="native-view-enter">
+            <Suspense fallback={<ViewLoadingFallback />}>
+              <MarketAndToolsView />
+            </Suspense>
+          </div>
+        )}
+
         {/* FIELD SCAN HISTORY LOG */}
         {activeTab === 'history' && (
           <div key="history" className="native-view-enter">
@@ -1355,7 +1408,7 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
                     onClick={() => setDetailScanId(null)}
                     className="inline-flex items-center gap-1.5 text-xs font-bold text-[#14532d] hover:underline cursor-pointer"
                   >
-                    {isUrdu ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
+                    <ArrowLeft className="w-4 h-4" />
                     <span>{isUrdu ? 'تمام اسکین پر واپس جائیں' : 'Back to Field Log'}</span>
                   </button>
                   <button
@@ -1448,6 +1501,67 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
                     </ul>
                   </div>
                 )}
+
+                <div className="pt-3 border-t border-[#cbdcd0]/70 flex flex-wrap items-center gap-2.5">
+                  <a
+                    href={buildWhatsAppShareUrl(
+                      buildWhatsAppSummaryText(
+                        {
+                          diseaseName: detailEntry.diseaseName,
+                          scientificName: detailEntry.scientificName,
+                          confidence: detailEntry.confidence,
+                          severity: detailEntry.severity,
+                          summary: detailEntry.summary,
+                          organicSteps: detailEntry.organicTreatment
+                        },
+                        isUrdu
+                      )
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="min-h-[38px] px-4 py-2 rounded-xl bg-[#166534] hover:bg-[#14532d] text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>{isUrdu ? 'واٹس ایپ پر بھیجیں' : 'Share on WhatsApp'}</span>
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const txt = buildWhatsAppSummaryText(
+                        {
+                          diseaseName: detailEntry.diseaseName,
+                          scientificName: detailEntry.scientificName,
+                          confidence: detailEntry.confidence,
+                          severity: detailEntry.severity,
+                          summary: detailEntry.summary,
+                          organicSteps: detailEntry.organicTreatment
+                        },
+                        isUrdu
+                      );
+                      void navigator.clipboard?.writeText(txt).then(() => {
+                        setCopiedHistoryId(detailEntry.id);
+                        window.setTimeout(() => setCopiedHistoryId(null), 2500);
+                      });
+                    }}
+                    className="min-h-[38px] px-3.5 py-2 rounded-xl bg-[#faf8f2] hover:bg-[#edf5ef] border border-[#cbdcd0] text-xs font-bold text-[#13281c] inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {copiedHistoryId === detailEntry.id ? (
+                      <Check className="w-3.5 h-3.5 text-[#166534]" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5 text-[#5b7463]" />
+                    )}
+                    <span>
+                      {copiedHistoryId === detailEntry.id
+                        ? isUrdu
+                          ? 'کاپی ہو گیا'
+                          : 'Copied'
+                        : isUrdu
+                        ? 'خلاصہ کاپی'
+                        : 'Copy Summary'}
+                    </span>
+                  </button>
+                </div>
               </section>
             ) : (
               <section className="rounded-2xl bg-white border border-[#cbdcd0] p-4 sm:p-5 space-y-4">
@@ -1577,7 +1691,7 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
                           key={entry.id}
                           onDelete={() => removeScan(entry.id)}
                           deleteLabel={isUrdu ? 'حذف' : 'Delete'}
-                          isRtl={isUrdu}
+                          isRtl={false}
                         >
                           <button
                             type="button"
@@ -1634,7 +1748,17 @@ export const AgroVisionApp: React.FC<AgroVisionAppProps> = ({
             <ProfileView
               onOpenAuth={() => setIsAuthModalOpen(true)}
               onOpenScanner={() => launchCameraScan()}
+              onOpenAdmin={() => selectTab('admin')}
             />
+          </div>
+        )}
+
+        {/* ADMIN DASHBOARD TAB */}
+        {activeTab === 'admin' && (
+          <div key="admin" className="native-view-enter">
+            <Suspense fallback={<ViewLoadingFallback />}>
+              <AdminDashboardView />
+            </Suspense>
           </div>
         )}
       </main>

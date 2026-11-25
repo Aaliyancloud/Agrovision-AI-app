@@ -48,17 +48,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
   const [mode, setMode] = useState<AuthMode>('signin');
   const [displayName, setDisplayName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [editName, setEditName] = useState(activeProfile?.displayName || 'Aaryan Awan');
+  const [editName, setEditName] = useState(activeProfile?.displayName || '');
+  const [editPhone, setEditPhone] = useState(activeProfile?.phoneNumber || '');
 
   useEffect(() => {
     if (activeProfile?.displayName) {
       setEditName(activeProfile.displayName);
     }
-  }, [activeProfile?.displayName]);
+    setEditPhone(activeProfile?.phoneNumber || '');
+  }, [activeProfile?.displayName, activeProfile?.phoneNumber]);
 
   const handleDpUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -112,7 +115,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     if (mode === 'signin') {
       ok = await signInWithEmailAccount(email, password);
     } else if (mode === 'signup') {
-      ok = await signUpWithEmailAccount(displayName, email, password);
+      ok = await signUpWithEmailAccount(displayName, email, password, phoneNumber);
     } else {
       ok = await sendPasswordReset(email);
     }
@@ -148,7 +151,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       aria-label={isUrdu ? 'ایگرو وژن اکاؤنٹ' : 'AgroVision Account'}
     >
       <div
-        dir={isUrdu ? 'rtl' : 'ltr'}
+        dir="ltr"
         onClick={(e) => e.stopPropagation()}
         className="relative w-full max-w-[390px] bg-[#faf8f2] border border-[#cbdcd0] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh]"
       >
@@ -239,25 +242,36 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   </div>
                 </div>
 
-                <div className="space-y-1 pt-2 border-t border-[#cbdcd0]/60">
-                  <label className="block text-[10px] font-bold text-[#13281c] uppercase tracking-wider">
-                    {isUrdu ? 'پروفائل کا نام تبدیل کریں' : 'Update Grower Name'}
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      placeholder="Aaryan Awan"
-                      className="flex-1 min-h-[36px] px-3 py-1.5 rounded-xl bg-[#faf8f2] border border-[#cbdcd0] text-xs font-bold text-[#13281c] focus:outline-none focus:ring-2 focus:ring-[#166534]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => updateGrowerProfile(editName)}
-                      className="px-3.5 py-1.5 rounded-xl bg-[#14532d] hover:bg-[#0f3d21] text-white text-xs font-bold cursor-pointer shadow-xs"
-                    >
-                      {isUrdu ? 'محفوظ' : 'Save'}
-                    </button>
+                <div className="space-y-2.5 pt-2 border-t border-[#cbdcd0]/60">
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#13281c] uppercase tracking-wider mb-1">
+                      {isUrdu ? 'پروفائل کا نام اور فون نمبر' : 'Update Grower Name & Phone'}
+                    </label>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        placeholder={isUrdu ? 'اپنا نام درج کریں' : 'Enter grower name'}
+                        className="w-full min-h-[38px] px-3 py-1.5 rounded-xl bg-[#faf8f2] border border-[#cbdcd0] text-xs font-bold text-[#13281c] focus:outline-none focus:ring-2 focus:ring-[#166534]"
+                      />
+                      <div className="flex gap-2">
+                        <input
+                          type="tel"
+                          value={editPhone}
+                          onChange={(e) => setEditPhone(e.target.value)}
+                          placeholder="+92 3XX XXXXXXX"
+                          className="flex-1 min-h-[38px] px-3 py-1.5 rounded-xl bg-[#faf8f2] border border-[#cbdcd0] text-xs font-mono text-[#13281c] focus:outline-none focus:ring-2 focus:ring-[#166534]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updateGrowerProfile(editName, undefined, editPhone)}
+                          className="px-4 py-1.5 rounded-xl bg-[#14532d] hover:bg-[#0f3d21] text-white text-xs font-bold cursor-pointer shadow-xs shrink-0"
+                        >
+                          {isUrdu ? 'محفوظ' : 'Save'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -363,22 +377,41 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               {/* Email & Password Form */}
               <form onSubmit={handleSubmit} className="space-y-3">
                 {mode === 'signup' && (
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#13281c] mb-1">
-                      {isUrdu ? 'آپ کا نام' : 'Your Name'}
-                    </label>
-                    <div className="relative">
-                      <User className="w-4 h-4 text-[#5b7463] absolute top-1/2 -translate-y-1/2 left-3.5 pointer-events-none" />
-                      <input
-                        type="text"
-                        required
-                        value={displayName}
-                        onChange={(e) => setDisplayName(e.target.value)}
-                        placeholder={isUrdu ? 'مثال: احمد خان' : 'e.g. Tariq Farm'}
-                        className="w-full pl-10 pr-3.5 py-3 rounded-2xl bg-white border border-[#cbdcd0] text-xs text-[#13281c] focus:outline-none focus:ring-2 focus:ring-[#166534]"
-                      />
+                  <>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#13281c] mb-1">
+                        {isUrdu ? 'آپ کا نام' : 'Your Name'}
+                      </label>
+                      <div className="relative">
+                        <User className="w-4 h-4 text-[#5b7463] absolute top-1/2 -translate-y-1/2 left-3.5 pointer-events-none" />
+                        <input
+                          type="text"
+                          required
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                          placeholder={isUrdu ? 'مثال: عالیان اعوان' : 'e.g. Tariq Farm'}
+                          className="w-full pl-10 pr-3.5 py-3 rounded-2xl bg-white border border-[#cbdcd0] text-xs text-[#13281c] focus:outline-none focus:ring-2 focus:ring-[#166534]"
+                        />
+                      </div>
                     </div>
-                  </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#13281c] mb-1">
+                        {isUrdu ? 'فون نمبر (موبائل)' : 'Phone Number'}
+                      </label>
+                      <div className="relative">
+                        <Smartphone className="w-4 h-4 text-[#5b7463] absolute top-1/2 -translate-y-1/2 left-3.5 pointer-events-none" />
+                        <input
+                          type="tel"
+                          required
+                          value={phoneNumber}
+                          onChange={(e) => setPhoneNumber(e.target.value)}
+                          placeholder="+92 3XX XXXXXXX"
+                          className="w-full pl-10 pr-3.5 py-3 rounded-2xl bg-white border border-[#cbdcd0] text-xs font-mono text-[#13281c] focus:outline-none focus:ring-2 focus:ring-[#166534]"
+                        />
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 <div>
@@ -455,6 +488,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   </span>
                 </button>
               </form>
+
+              <button
+                type="button"
+                onClick={handleGoogle}
+                disabled={submitting}
+                className="w-full min-h-[44px] px-3 py-2 rounded-2xl bg-white hover:bg-[#faf8f2] border border-[#cbdcd0] text-[#13281c] font-bold text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <Cloud className="w-4 h-4 text-[#166534]" />
+                <span>{isUrdu ? 'گوگل اکاؤنٹ سے سائن ان کریں' : 'Continue with Google'}</span>
+              </button>
 
               <button
                 type="button"

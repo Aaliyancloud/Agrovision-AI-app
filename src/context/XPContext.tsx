@@ -8,7 +8,8 @@ export type MissionId =
   | 'scan_lower_leaf'
   | 'check_soil_sensors'
   | 'explore_library'
-  | 'learning_activity';
+  | 'learning_activity'
+  | 'daily_plant_care';
 
 export interface DailyMissionItem {
   id: MissionId;
@@ -16,10 +17,11 @@ export interface DailyMissionItem {
 }
 
 export const DAILY_MISSIONS: DailyMissionItem[] = [
-  { id: 'scan_lower_leaf', xpReward: 30 },
-  { id: 'check_soil_sensors', xpReward: 35 },
-  { id: 'explore_library', xpReward: 25 },
-  { id: 'learning_activity', xpReward: 25 }
+  { id: 'scan_lower_leaf', xpReward: 20 },
+  { id: 'check_soil_sensors', xpReward: 20 },
+  { id: 'explore_library', xpReward: 20 },
+  { id: 'learning_activity', xpReward: 20 },
+  { id: 'daily_plant_care', xpReward: 20 }
 ];
 
 export type BadgeActionTarget = 'scan' | 'sensors' | 'library' | 'learn' | 'missions';
@@ -57,8 +59,8 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
       'ٹماٹر کی فصل کی حفاظت کا سفر شروع کرنے والے کاشتکاروں اور طلبہ کے لیے پہلا اعزاز۔',
     howToEarnEn: 'Unlocked automatically at Level 1 (0 XP).',
     howToEarnUr: 'لیول 1 (0 XP) پر خودکار طور پر کھلتا ہے۔',
-    actionLabelEn: 'Scan a Leaf (+40 XP)',
-    actionLabelUr: 'پتہ اسکین کریں (+40 XP)',
+    actionLabelEn: 'Complete Daily Missions',
+    actionLabelUr: 'روزانہ مشن مکمل کریں',
     actionTarget: 'scan',
     accentHex: '#166534'
   },
@@ -74,8 +76,8 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
       'Recognizes growers who actively scout lower canopy leaves and inspect crop stages for early warning signs.',
     descriptionUr:
       'نچلے پتوں کا باقاعدہ معائنہ کرنے اور بیماری کی ابتدائی علامات پکڑنے پر ملتا ہے۔',
-    howToEarnEn: 'Reach Level 2 (100 XP) via leaf scans & event-tracked missions.',
-    howToEarnUr: 'اسکین اور روزانہ مشن مکمل کر کے لیول 2 (100 XP) حاصل کریں۔',
+    howToEarnEn: 'Reach Level 2 (100 XP) via daily field missions.',
+    howToEarnUr: 'روزانہ فیلڈ مشن مکمل کر کے لیول 2 (100 XP) حاصل کریں۔',
     actionLabelEn: 'Complete Missions',
     actionLabelUr: 'روزانہ مشن دیکھیں',
     actionTarget: 'missions',
@@ -93,8 +95,8 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
       'Mastery of fungal, bacterial, and viral leaf lesion diagnosis paired with organic treatment steps.',
     descriptionUr:
       'پھپھوندی، بیکٹیریا اور وائرس کی علامات کی درست تشخیص اور قدرتی علاج میں مہارت۔',
-    howToEarnEn: 'Reach Level 3 (200 XP) by analyzing leaves and studying the Disease Atlas.',
-    howToEarnUr: 'پتوں کا تجزیہ کر کے اور امراض اٹلس دیکھ کر لیول 3 (200 XP) حاصل کریں۔',
+    howToEarnEn: 'Reach Level 3 (200 XP) over consistent daily check-ins.',
+    howToEarnUr: 'باقاعدہ روزانہ مشنز کے ذریعے لیول 3 (200 XP) حاصل کریں۔',
     actionLabelEn: 'Open Disease Atlas',
     actionLabelUr: 'امراض اٹلس کھولیں',
     actionTarget: 'library',
@@ -112,8 +114,8 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
       'Celebrates tuning soil intelligence and pH probes to separate root nutrient stress from pathogen outbreaks.',
     descriptionUr:
       'مٹی کی نمی اور پی ایچ کو متوازن رکھ کر فصل کو بیماریوں سے بچانے کا اعزاز۔',
-    howToEarnEn: 'Reach Level 4 (300 XP) by checking real soil intelligence and root probes.',
-    howToEarnUr: 'مٹی کا تجزیہ اور سینسر چیک کر کے لیول 4 (300 XP) حاصل کریں۔',
+    howToEarnEn: 'Reach Level 4 (300 XP) by completing daily field missions.',
+    howToEarnUr: 'روزانہ مشن اور مٹی کی جانچ سے لیول 4 (300 XP) حاصل کریں۔',
     actionLabelEn: 'Open Soil Intelligence',
     actionLabelUr: 'مٹی کا ڈیٹا دیکھیں',
     actionTarget: 'sensors',
@@ -131,8 +133,8 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
       'Honors consistent preventative care across the Learning Centre, Disease Atlas, and Plant Growth Journey.',
     descriptionUr:
       'لرننگ سینٹر اور مسلسل حفاظتی نگہداشت سے بھرپور فصل حاصل کرنے پر۔',
-    howToEarnEn: 'Reach Level 5 (400 XP) across scans, soil checks, and Learning Centre guides.',
-    howToEarnUr: 'اسکین، مٹی کی جانچ اور لرننگ سینٹر سے لیول 5 (400 XP) تک پہنچیں۔',
+    howToEarnEn: 'Reach Level 5 (400 XP) across multi-day streaks and daily missions.',
+    howToEarnUr: 'مسلسل سلسلے اور روزانہ مشن سے لیول 5 (400 XP) تک پہنچیں۔',
     actionLabelEn: 'Open Learning Centre',
     actionLabelUr: 'لرننگ سینٹر کھولیں',
     actionTarget: 'learn',
@@ -152,8 +154,8 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
       'ایگرو وژن کا سب سے بڑا اعزاز — اے آئی تشخیص، مٹی کے علم اور نباتاتی مہارت کے لیے۔',
     howToEarnEn: 'Reach Level 6 (500 XP) to unlock the complete AgroVision badge collection.',
     howToEarnUr: 'مکمل بیج کلیکشن کھولنے کے لیے لیول 6 (500 XP) حاصل کریں۔',
-    actionLabelEn: 'Keep Scouting (+40 XP)',
-    actionLabelUr: 'مزید اسکین کریں (+40 XP)',
+    actionLabelEn: 'Keep Scouting',
+    actionLabelUr: 'مزید اسکین کریں',
     actionTarget: 'scan',
     accentHex: '#13281C'
   }
@@ -226,7 +228,7 @@ function getOffsetDateKey(daysAgo: number): string {
 }
 
 export function computeStreakBonusXp(streakDays: number): number {
-  return Math.min(50, 10 + Math.max(1, streakDays) * 5);
+  return Math.min(25, Math.max(1, streakDays) * 5);
 }
 
 interface PersistedXPState {
@@ -250,20 +252,20 @@ interface PersistedStreakState {
 }
 
 function readStoredXP(): PersistedXPState {
-  if (typeof window === 'undefined') return { xp: 20, awardedActions: {} };
+  if (typeof window === 'undefined') return { xp: 0, awardedActions: {} };
   try {
     const raw = localStorage.getItem(XP_STORAGE_KEY);
-    if (!raw) return { xp: 20, awardedActions: {} };
+    if (!raw) return { xp: 0, awardedActions: {} };
     const parsed = JSON.parse(raw);
     return {
-      xp: typeof parsed.xp === 'number' && parsed.xp >= 0 ? Math.min(100000, parsed.xp) : 20,
+      xp: typeof parsed.xp === 'number' && parsed.xp >= 0 ? Math.min(100000, parsed.xp) : 0,
       awardedActions:
         parsed.awardedActions && typeof parsed.awardedActions === 'object'
           ? parsed.awardedActions
           : {}
     };
   } catch {
-    return { xp: 20, awardedActions: {} };
+    return { xp: 0, awardedActions: {} };
   }
 }
 
@@ -602,23 +604,24 @@ export const XPProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       onceKey?: string,
       notify = false
     ): boolean => {
-      if (amount <= 0) return false;
-      if (onceKey && xpStateRef.current.awardedActions[onceKey]) {
+      // Strictly require a deterministic onceKey so repeated actions (e.g. multiple scans/chats)
+      // can NEVER grant uncapped XP or jump multiple levels in a single day.
+      if (amount <= 0 || !onceKey) return false;
+      const safeAmount = Math.min(25, Math.round(amount));
+      if (xpStateRef.current.awardedActions[onceKey]) {
         return false;
       }
       setXpState((prev) => {
-        if (onceKey && prev.awardedActions[onceKey]) {
+        if (prev.awardedActions[onceKey]) {
           return prev;
         }
         return {
-          xp: Math.min(100000, prev.xp + amount),
-          awardedActions: onceKey
-            ? trimBoundedMap({ ...prev.awardedActions, [onceKey]: true }, 180)
-            : prev.awardedActions
+          xp: Math.min(100000, prev.xp + safeAmount),
+          awardedActions: trimBoundedMap({ ...prev.awardedActions, [onceKey]: true }, 180)
         };
       });
       if (notify) {
-        showBanner(amount, reasonEn, reasonUr);
+        showBanner(safeAmount, reasonEn, reasonUr);
       }
       return true;
     },
@@ -694,6 +697,10 @@ export const XPProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         learning_activity: {
           en: `Daily Mission Verified: Learning / AI Consult (+${missionDef.xpReward} XP)`,
           ur: `روزانہ مشن مکمل: لرننگ / اے آئی مشورہ (+${missionDef.xpReward} XP)`
+        },
+        daily_plant_care: {
+          en: `Daily Mission Verified: Watering & Plant Care (+${missionDef.xpReward} XP)`,
+          ur: `روزانہ مشن مکمل: پودوں کی دیکھ بھال و آبپاشی (+${missionDef.xpReward} XP)`
         }
       };
 

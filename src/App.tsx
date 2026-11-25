@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { MotionProvider } from './context/MotionContext';
+import { PreferencesProvider } from './context/PreferencesContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { SensorProvider } from './context/SensorContext';
 import { ScanHistoryProvider } from './context/ScanHistoryContext';
@@ -31,6 +32,7 @@ function getInitialAppRoute(): { mode: AppMode; tab: AppTab; action: 'camera' | 
     'scan',
     'care',
     'learn',
+    'mandi',
     'history',
     'messenger',
     'anatomy',
@@ -52,7 +54,7 @@ function getInitialAppRoute(): { mode: AppMode; tab: AppTab; action: 'camera' | 
 const AppShell: React.FC = () => {
   const initialRoute = getInitialAppRoute();
   const [mode, setMode] = useState<AppMode>(initialRoute.mode);
-  const { authReady } = useAuth();
+  const { authReady, activeProfile } = useAuth();
   const [minBootDone, setMinBootDone] = useState(() => {
     if (typeof window === 'undefined') return true;
     return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -81,7 +83,7 @@ const AppShell: React.FC = () => {
   };
 
   if (mode !== 'website' && (!minBootDone || !authReady)) {
-    return <AppInitialSkeleton />;
+    return <AppInitialSkeleton userName={activeProfile?.displayName} />;
   }
 
   return (
@@ -104,20 +106,22 @@ export default function App() {
     <ErrorBoundary>
       <AuthProvider>
         <MotionProvider>
-          <LanguageProvider>
-            <SensorProvider>
-              <ScanHistoryProvider>
-                <XPProvider>
-                  <PlantJourneyProvider>
-                    <LearningProvider>
-                      <AnimatedFavicon />
-                      <AppShell />
-                    </LearningProvider>
-                  </PlantJourneyProvider>
-                </XPProvider>
-              </ScanHistoryProvider>
-            </SensorProvider>
-          </LanguageProvider>
+          <PreferencesProvider>
+            <LanguageProvider>
+              <SensorProvider>
+                <ScanHistoryProvider>
+                  <XPProvider>
+                    <PlantJourneyProvider>
+                      <LearningProvider>
+                        <AnimatedFavicon />
+                        <AppShell />
+                      </LearningProvider>
+                    </PlantJourneyProvider>
+                  </XPProvider>
+                </ScanHistoryProvider>
+              </SensorProvider>
+            </LanguageProvider>
+          </PreferencesProvider>
         </MotionProvider>
       </AuthProvider>
     </ErrorBoundary>

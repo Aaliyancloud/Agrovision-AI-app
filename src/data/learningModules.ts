@@ -585,6 +585,146 @@ export const LEARNING_MODULES: LearningModule[] = [
     videoTitleUr: 'شدید گرمی اور برسات میں ٹماٹر کی فصل بچانے کا طریقہ',
     videoDuration: '5:00',
     youtubeQuery: 'protect tomato plants heat wave high humidity monsoon'
+  },
+  {
+    id: 'anti_fake_spray_verification',
+    courseId: 'soil_climate',
+    lessonNumber: 4,
+    category: 'soil',
+    durationMinutes: 4,
+    offlineReady: true,
+    titleEn: 'Anti-Fake Spray & Certified Seed Check',
+    titleUr: 'جعلی زرعی دوا اور بیج کی پہچان و تصدیق',
+    summaryEn:
+      'Protect your crop and budget in Pakistan by verifying sealed induction caps, dealer invoices, batch numbers, and Pest Warning registration before mixing.',
+    summaryUr:
+      'فصل اور پیسے بچانے کے لیے دوا مکس کرنے سے پہلے سیل شدہ ڈھکن، پکی رسید، بیچ نمبر اور محکمہ پیسٹ وارننگ کی رجسٹریشن ضرور چیک کریں۔',
+    lookForEn:
+      'Intact aluminum foil induction seal under the cap, clear engraved batch number + expiry date, printed Pest Warning registration number, and clean sealed original packaging.',
+    lookForUr:
+      'ڈھکن کے نیچے محفوظ ایلومینیم سیل، واضح بیچ نمبر و زائد المیعاد تاریخ، رجسٹرڈ کمپنی لیبل اور ڈیلر کی پکی رسید۔',
+    detailedGuideEn: [
+      '1. Always request a printed/written dealer invoice showing product name, batch number, and date.',
+      '2. Inspect the induction foil seal beneath the bottle cap—broken, glued, or crooked seals indicate tampering.',
+      '3. Scan any QR code on the bottle or match the registration number via Provincial Pest Warning & Quality Control offices.',
+      '4. Never exceed label water ratios or harvest before the Pre-Harvest Interval (PHI) listed on the container.'
+    ],
+    detailedGuideUr: [
+      '1. ہمیشہ رجسٹرڈ ڈیلر سے پکی رسید لیں جس پر دوا کا نام، بیچ نمبر اور تاریخ درج ہو۔',
+      '2. بوتل کے ڈھکن کے نیچے اصل مہر (Seal) چیک کریں؛ کٹی ہوئی یا جلی ہوئی مہر جعلی دوا کی علامت ہے۔',
+      '3. بوتل پر موجود کیو آر کوڈ اسکین کریں یا محکمہ پیسٹ وارننگ کے رجسٹریشن نمبر کی تصدیق کریں۔',
+      '4. دوا کے ڈبے پر درج تڑائی کے وقفے (PHI) سے پہلے ٹماٹر ہرگز منڈی نہ بھیجیں۔'
+    ],
+    keyTakeawaysEn: [
+      'Never buy loose/unlabeled chemical bottles transferred into soda bottles.',
+      'Check manufacturing and expiry dates stamped directly onto bottle necks.',
+      'Use calibrated 16L / 20L knapsack dosages—double-dosing burns foliage without curing faster.'
+    ],
+    keyTakeawaysUr: [
+      'کبھی بھی کھلی یا بغیر لیبل بوتل میں زرعی دوا نہ خریدیں۔',
+      'بوتل پر چھپی ہوئی تاریخِ تنسیخ اور بیچ نمبر ضرور پڑھیں۔',
+      '16 یا 20 لیٹر ٹینکی کے مطابق مقررہ خوراک ڈالیں، زیادہ خوراک سے پتے جھلس جاتے ہیں۔'
+    ],
+    avoidMistakeEn: 'Do not mix multiple unknown chemical powders together in one spray tank without checking label compatibility.',
+    avoidMistakeUr: 'بغیر تصدیق کے مختلف کیمیائی دوائیں ایک ہی ٹینکی میں ہرگز مکس نہ کریں۔',
+    actionTipEn: 'Verify sealed foil cap & expiry date on your stored spray bottles before your next morning spray.',
+    actionTipUr: 'اگلے اسپرے سے پہلے اپنی موجودہ بوتلوں کی سیل اور تاریخِ تنسیخ ضرور چیک کریں۔',
+    videoTitleEn: 'How Farmers Identify Genuine Pesticides & Seeds',
+    videoTitleUr: 'اصلی اور جعلی زرعی دوا و بیج کی پہچان کا طریقہ',
+    videoDuration: '4:40',
+    youtubeQuery: 'identify genuine counterfeit pesticide seed bottle agriculture'
+  },
+  {
+    id: 'pakistan_helplines_extension',
+    courseId: 'soil_climate',
+    lessonNumber: 5,
+    category: 'climate',
+    durationMinutes: 3,
+    offlineReady: true,
+    titleEn: 'Pakistan Agri Helplines & Soil Labs',
+    titleUr: 'پاکستان زرعی ہیلپ لائنز اور مٹی ٹیسٹ لیبز',
+    summaryEn:
+      'Direct toll-free government agricultural helplines, PARC/NARC contacts, and how to submit leaf or soil samples at your Tehsil Extension office.',
+    summaryUr:
+      'محکمہ زراعت کی مفت ہیلپ لائنز، زرعی تحقیقی مراکز اور قریبی تحصیل لیب سے مٹی و پودے کی بیماری کا ٹیسٹ کروانے کا طریقہ۔',
+    lookForEn:
+      'Official Agriculture Helpline 0800-17000 (Punjab), PARC/NARC Islamabad (+92 51 90733800), and District Soil & Water Testing Laboratories.',
+    lookForUr:
+      'پنجاب زرعی ہیلپ لائن 0800-17000، پی اے آر سی اسلام آباد 90733800-051 اور ضلعی مٹی و پانی ٹیسٹنگ لیبارٹری۔',
+    detailedGuideEn: [
+      'Punjab Agriculture Helpline: Call 0800-17000 (toll-free) for seasonal tomato advisories, pest outbreaks, and counterfeit dealer complaints.',
+      'National Agricultural Research Centre (PARC/NARC): Call +92 51 90733800 for certified nursery guidance and pathology support.',
+      'Collecting a lab sample: Dig 4–5 small soil cores (15 cm deep) across your field, mix cleanly in a bucket, and carry 500 g in a labeled bag to your Tehsil Soil Lab.'
+    ],
+    detailedGuideUr: [
+      'پنجاب زرعی ہیلپ لائن: 0800-17000 پر مفت کال کر کے موسمی مشورے یا جعلی کھاد/دوا کی شکایت درج کروائیں۔',
+      'این اے آر سی اسلام آباد: 90733800-051 پر زرعی ماہرین سے رہنمائی حاصل کریں۔',
+      'مٹی کا نمونہ لینے کا طریقہ: کھیت کے 4 سے 5 مقامات سے 6 انچ گہری مٹی ملا کر آدھا کلو صاف تھیلی میں تحصیل زرعی لیب لے جائیں۔'
+    ],
+    keyTakeawaysEn: [
+      'Save 0800-17000 on your phone before peak transplant or monsoon weeks.',
+      'Bring both healthy and symptomatic leaves in a paper bag when visiting a field officer.',
+      'Soil pH & salinity lab tests save thousands of rupees in wasted fertilizer.'
+    ],
+    keyTakeawaysUr: [
+      'اپنے فون میں محکمہ زراعت ہیلپ لائن 0800-17000 ضرور محفوظ رکھیں۔',
+      'زرعی آفس جاتے وقت بیمار پتے کے ساتھ ایک صحت مند پتا بھی کاغذی لفافے میں لے جائیں۔',
+      'مٹی کے تجزیے سے غیر ضروری کھاد کا خرچ بچتا ہے۔'
+    ],
+    avoidMistakeEn: 'Do not wrap fresh plant disease samples in wet airtight plastic under hot sun—they rot before officers examine them.',
+    avoidMistakeUr: 'جانچ کے لیے بیمار پتے گیلی بند پلاسٹک تھیلی میں دھوپ میں نہ رکھیں ورنہ نمونہ خراب ہو جاتا ہے۔',
+    actionTipEn: 'Keep the Verified Helpline directory open in Market or Learn whenever consulting local dealers.',
+    actionTipUr: 'جب بھی ڈیلر سے دوا لیں تو تصدیق شدہ ہیلپ لائن نمبرز ساتھ رکھیں۔',
+    videoTitleEn: 'How to Take a Soil Sample for Testing',
+    videoTitleUr: 'مٹی ٹیسٹ کروانے کے لیے کھیت سے صحیح نمونہ لینے کا طریقہ',
+    videoDuration: '4:15',
+    youtubeQuery: 'how to take soil sample farm lab test'
+  },
+  {
+    id: 'pakistan_plastic_tunnel_guide',
+    courseId: 'basics',
+    lessonNumber: 5,
+    category: 'climate',
+    durationMinutes: 5,
+    offlineReady: true,
+    titleEn: 'Plastic Tunnel & Off-Season Tomatoes',
+    titleUr: 'پلاسٹک ٹنل اور آف سیزن ٹماٹر کاشت',
+    summaryEn:
+      'Maximize winter and early-spring mandi returns using walk-in plastic tunnels, frost shielding, morning venting, and drip nutrition.',
+    summaryUr:
+      'سردیوں اور بہار کے شروع میں بہترین منڈی ریٹ حاصل کرنے کے لیے پلاسٹک ٹنل میں درجہ حرارت، ہوا اور ٹریننگ کا مکمل نظام۔',
+    lookForEn:
+      'Condensation dripping from poly sheets before 9 AM and stagnant warm air—two early signs your tunnel needs side curtains rolled up immediately.',
+    lookForUr:
+      'صبح 9 بجے کے بعد ٹنل کے اندر پلاسٹک پر زیادہ پانی کے قطرے اور حبس—یہ فوری پردے کھولنے کی علامت ہے۔',
+    detailedGuideEn: [
+      'Nursery protection: Raise seedlings under 50-mesh insect net in Sept–Oct so whiteflies never bring Leaf Curl Virus inside the tunnel.',
+      'Ventilation rule: Roll up lower side skirts every sunny morning once inside temp reaches 22–24°C, and close by 4:00 PM to trap night warmth.',
+      'Training & pruning: Trellis indeterminate tunnel hybrids vertically on overhead wire twine and remove lower suckers weekly.'
+    ],
+    detailedGuideUr: [
+      'محفوظ پنیری: ستمبر اکتوبر میں 50 میش باریک جالی میں پنیری تیار کریں تاکہ وائرس ٹنل کے اندر نہ جائے۔',
+      'ہوا کا گزر: دھوپ نکلتے ہی جب اندر گرمی 22–24°C ہو جائے تو سائیڈ پردے کھولیں اور شام 4 بجے دوبارہ بند کریں۔',
+      'رسیوں پر چڑھائی: ٹنل والی اقسام کو اوپر والی تار سے سوتلی باندھ کر چڑھائیں اور فالتو شاخیں ہفتہ وار صاف کریں۔'
+    ],
+    keyTakeawaysEn: [
+      'Tunnel crops fetch peak wholesale rates in Jan–Mar across Lahore, Islamabad & Multan mandis.',
+      'Midday truss tapping inside calm poly tunnels ensures heavy fruit set.',
+      'Strict ventilation cuts Leaf Mold & Late Blight losses dramatically.'
+    ],
+    keyTakeawaysUr: [
+      'پلاسٹک ٹنل کی فصل جنوری تا مارچ سبزی منڈی میں بہترین ریٹ لیتی ہے۔',
+      'ٹنل میں ہوا نہ ہونے کی وجہ سے دوپہر کو پودوں کو ہلکا ہلانا پھل بڑھاتا ہے۔',
+      'وقت پر پردے کھولنا لیف مولڈ اور جھلساؤ سے بچاتا ہے۔'
+    ],
+    avoidMistakeEn: 'Never keep tunnel vents sealed all day when sunlight heats inside air past 32°C—flowers will drop.',
+    avoidMistakeUr: 'تیز دھوپ میں 32°C سے زیادہ گرمی ہونے پر ٹنل بند نہ رکھیں ورنہ پھول جھڑ جائیں گے۔',
+    actionTipEn: 'Check morning tunnel condensation and adjust side curtains before 8:30 AM.',
+    actionTipUr: 'صبح 8:30 بجے سے پہلے ٹنل کے اندر نمی چیک کر کے سائیڈ پردے کھولیں۔',
+    videoTitleEn: 'Tunnel Farming Tomato Care & Ventilation Guide Pakistan',
+    videoTitleUr: 'پاکستان میں پلاسٹک ٹنل ٹماٹر فارمنگ رہنمائی',
+    videoDuration: '6:10',
+    youtubeQuery: 'tunnel farming tomato cultivation pakistan guide'
   }
 ];
 

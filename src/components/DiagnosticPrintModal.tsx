@@ -180,64 +180,67 @@ export const DiagnosticPrintModal: React.FC<DiagnosticPrintModalProps> = ({
       const summaryText = result.summary.slice(0, 180) + '...';
       ctx.fillText(summaryText, 110, 660);
 
-      // 7-Day Protocol
+      // 7-Day / Tailored Protocol (Dynamic by Condition)
       ctx.fillStyle = '#13281c';
       ctx.font = 'bold 22px sans-serif';
-      ctx.fillText('7-Day Structured Recovery Schedule', 110, 780);
+      ctx.fillText(`Tailored Care Routine — ${result.diseaseName}`, 110, 780);
 
-      // Day 1
-      ctx.fillStyle = '#ffffff';
-      ctx.roundRect(80, 810, 320, 220, 12);
-      ctx.fill();
-      ctx.strokeStyle = '#059669';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.fillStyle = '#059669';
-      ctx.font = 'bold 16px monospace';
-      ctx.fillText('DAY 01 · IMMEDIATE', 100, 845);
-      ctx.fillStyle = '#13281c';
-      ctx.font = 'bold 18px sans-serif';
-      ctx.fillText('Targeted Organic Spray', 100, 880);
-      ctx.fillStyle = '#3d5947';
-      ctx.font = '14px sans-serif';
-      ctx.fillText('Neem oil extract or organic', 100, 920);
-      ctx.fillText('copper soap at dawn.', 100, 945);
+      const routineSteps =
+        result.careRoutine && result.careRoutine.length > 0
+          ? result.careRoutine.slice(0, 3)
+          : [
+              {
+                phase: 'DAY 01 · ACTION',
+                title: 'Primary Treatment',
+                instruction: result.treatment.organic[0] || 'Apply recommended organic care immediately.'
+              },
+              {
+                phase: 'WATER & CANOPY',
+                title: 'Field & Moisture Care',
+                instruction: result.treatment.cultural[0] || 'Keep foliage dry and irrigate at base.'
+              },
+              {
+                phase: 'DAY 07 · VERIFY',
+                title: 'Follow-Up Inspection',
+                instruction: result.treatment.prevention[0] || 'Inspect upper shoots for clean green growth.'
+              }
+            ];
 
-      // Day 3
-      ctx.fillStyle = '#ffffff';
-      ctx.roundRect(440, 810, 320, 220, 12);
-      ctx.fill();
-      ctx.strokeStyle = '#d97706';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.fillStyle = '#d97706';
-      ctx.font = 'bold 16px monospace';
-      ctx.fillText('DAY 03 · SANITATION', 460, 845);
-      ctx.fillStyle = '#13281c';
-      ctx.font = 'bold 18px sans-serif';
-      ctx.fillText('Pruning & Aeration', 460, 880);
-      ctx.fillStyle = '#3d5947';
-      ctx.font = '14px sans-serif';
-      ctx.fillText('Prune infected lower foliage', 460, 920);
-      ctx.fillText('and dispose far from crop.', 460, 945);
-
-      // Day 7
-      ctx.fillStyle = '#ffffff';
-      ctx.roundRect(800, 810, 320, 220, 12);
-      ctx.fill();
-      ctx.strokeStyle = '#059669';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.fillStyle = '#059669';
-      ctx.font = 'bold 16px monospace';
-      ctx.fillText('DAY 07 · VERIFY', 820, 845);
-      ctx.fillStyle = '#13281c';
-      ctx.font = 'bold 18px sans-serif';
-      ctx.fillText('Regeneration Check', 820, 880);
-      ctx.fillStyle = '#3d5947';
-      ctx.font = '14px sans-serif';
-      ctx.fillText('Inspect terminal shoots for', 820, 920);
-      ctx.fillText('vigorous emerald growth.', 820, 945);
+      const boxXs = [80, 440, 800];
+      routineSteps.forEach((step, idx) => {
+        const bx = boxXs[idx] || 80;
+        ctx.fillStyle = '#ffffff';
+        ctx.roundRect(bx, 810, 320, 235, 12);
+        ctx.fill();
+        ctx.strokeStyle = idx === 1 ? '#d97706' : '#059669';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = idx === 1 ? '#d97706' : '#059669';
+        ctx.font = 'bold 14px monospace';
+        ctx.fillText((step.phase || `STEP ${idx + 1}`).toUpperCase().slice(0, 26), bx + 18, 845);
+        ctx.fillStyle = '#13281c';
+        ctx.font = 'bold 17px sans-serif';
+        ctx.fillText((step.title || '').slice(0, 28), bx + 18, 880);
+        ctx.fillStyle = '#3d5947';
+        ctx.font = '14px sans-serif';
+        const words = (step.instruction || '').split(/\s+/);
+        let line = '';
+        let ly = 918;
+        for (const word of words) {
+          const test = line ? `${line} ${word}` : word;
+          if (test.length > 34) {
+            ctx.fillText(line, bx + 18, ly);
+            ly += 22;
+            line = word;
+            if (ly > 1020) break;
+          } else {
+            line = test;
+          }
+        }
+        if (line && ly <= 1025) {
+          ctx.fillText(line, bx + 18, ly);
+        }
+      });
 
       // Citation & Verification Seal
       ctx.fillStyle = '#047857';
@@ -370,56 +373,86 @@ export const DiagnosticPrintModal: React.FC<DiagnosticPrintModalProps> = ({
             </div>
           </div>
 
-          {/* Clinical Health Summary */}
-          <div className="p-3 rounded-xl bg-[#edf5ef] border border-emerald-200/80 text-xs text-[#13281c] leading-relaxed">
-            <strong className="text-emerald-950 block mb-0.5 font-bold">Field Advisory Summary:</strong>
-            {result.summary}
+          {/* Clinical Health Summary + Disease Definition */}
+          <div className="p-3 rounded-xl bg-[#edf5ef] border border-emerald-200/80 text-xs text-[#13281c] leading-relaxed space-y-1.5">
+            <div>
+              <strong className="text-emerald-950 block mb-0.5 font-bold">
+                {isUrdu ? 'تشخیصی خلاصہ:' : 'Field Advisory Summary:'}
+              </strong>
+              {isUrdu ? result.urduSummary || result.summary : result.summary}
+            </div>
+            {(result.diseaseDefinition || result.urduDiseaseDefinition) && (
+              <div className="pt-1.5 border-t border-emerald-200/70 text-[11px] text-[#3d5947]">
+                <strong className="text-emerald-950">
+                  {isUrdu ? 'بیماری کی تعریف: ' : 'Condition Definition: '}
+                </strong>
+                {isUrdu
+                  ? result.urduDiseaseDefinition || result.diseaseDefinition
+                  : result.diseaseDefinition}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* 7-Day Field Recovery Roadmap */}
+      {/* Condition-Specific Care Routine */}
       <div className="py-4 border-b border-[#cbdcd0]/70 relative z-10 space-y-2">
         <div className="flex items-center justify-between">
           <div className="font-display text-xs font-bold uppercase tracking-wider text-[#13281c] flex items-center gap-2">
             <Calendar className="w-4 h-4 text-emerald-700" />
-            <span>7-Day Structured Field Recovery Schedule</span>
+            <span>
+              {isUrdu
+                ? `${result.diseaseName} — خصوصی دیکھ بھال کا شیڈول`
+                : `Tailored Care Routine — ${result.diseaseName}`}
+            </span>
           </div>
           <span className="text-[10px] font-mono text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-            Sindh & Punjab Protocol
+            {isUrdu ? 'بیماری کے مطابق' : 'Condition-Specific'}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-2.5 rounded-2xl bg-[#faf8f2] border border-[#cbdcd0] text-left">
-            <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase">
-              Day 01 · Immediate Action
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {(result.careRoutine && result.careRoutine.length > 0
+            ? result.careRoutine
+            : [
+                {
+                  phase: 'Day 01 · Immediate Action',
+                  urduPhase: 'پہلا دن · فوری اقدام',
+                  title: 'Primary Care Step',
+                  urduTitle: 'بنیادی علاج',
+                  instruction: result.treatment.organic[0] || 'Apply condition-appropriate organic care.',
+                  urduInstruction: result.treatment.organic[0] || 'مناسب نامیاتی علاج استعمال کریں۔'
+                },
+                {
+                  phase: 'Water & Airflow',
+                  urduPhase: 'پانی اور ہوا',
+                  title: 'Water & Canopy Routine',
+                  urduTitle: 'پانی اور پودے کی ترتیب',
+                  instruction: result.treatment.cultural[0] || 'Water at soil level and keep foliage dry.',
+                  urduInstruction: 'صبح جڑوں میں پانی دیں اور پتوں کو خشک رکھیں۔'
+                },
+                {
+                  phase: 'Day 07 · Verification',
+                  urduPhase: 'ساتواں دن · جائزہ',
+                  title: 'Shoot Regeneration Check',
+                  urduTitle: 'نئی شاخوں کا معائنہ',
+                  instruction: result.treatment.prevention[0] || 'Inspect new terminal shoots for clean growth.',
+                  urduInstruction: 'نئی کونپلوں کا معائنہ کریں۔'
+                }
+              ]
+          ).map((step, idx) => (
+            <div key={idx} className="p-2.5 rounded-2xl bg-[#faf8f2] border border-[#cbdcd0] text-left">
+              <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase">
+                {isUrdu ? step.urduPhase : step.phase}
+              </div>
+              <div className="font-bold text-xs text-[#13281c] mt-0.5">
+                {isUrdu ? step.urduTitle : step.title}
+              </div>
+              <p className="text-[11px] text-[#3d5947] mt-1 leading-snug">
+                {isUrdu ? step.urduInstruction : step.instruction}
+              </p>
             </div>
-            <div className="font-bold text-xs text-[#13281c] mt-0.5">Targeted Organic Spray</div>
-            <p className="text-[11px] text-[#3d5947] mt-1 leading-snug">
-              {result.treatment.organic[0] || 'Apply certified neem oil extract or organic copper soap in early morning.'}
-            </p>
-          </div>
-
-          <div className="p-2.5 rounded-2xl bg-[#faf8f2] border border-[#cbdcd0] text-left">
-            <div className="text-[10px] font-mono font-bold text-amber-800 uppercase">
-              Day 03 · Sanitation
-            </div>
-            <div className="font-bold text-xs text-[#13281c] mt-0.5">Pruning & Aeration</div>
-            <p className="text-[11px] text-[#3d5947] mt-1 leading-snug">
-              {result.treatment.cultural[0] || 'Prune heavily infected lower leaves and bury far from healthy tomato beds.'}
-            </p>
-          </div>
-
-          <div className="p-2.5 rounded-2xl bg-[#faf8f2] border border-[#cbdcd0] text-left">
-            <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase">
-              Day 07 · Verification
-            </div>
-            <div className="font-bold text-xs text-[#13281c] mt-0.5">Shoot Regeneration</div>
-            <p className="text-[11px] text-[#3d5947] mt-1 leading-snug">
-              Inspect new terminal leaf buds for clean emerald growth with no lesions or curl.
-            </p>
-          </div>
+          ))}
         </div>
       </div>
 

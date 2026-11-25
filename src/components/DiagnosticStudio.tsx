@@ -26,15 +26,22 @@ import {
   Droplets,
   FlaskConical,
   SlidersHorizontal,
-  Download
+  Download,
+  Flag,
+  UserX,
+  Share2,
+  Copy,
+  Check
 } from 'lucide-react';
 import { DiagnosisResult, SampleLeaf } from '../types/disease';
 import { STEAM_EXHIBITION_SAMPLES } from '../data/tomatoDiseases';
-import { analyzeLeafImage, computeSensorInsights } from '../services/diseaseClassifier';
+import { analyzeLeafImage, computeSensorInsights, ScannerServiceError } from '../services/diseaseClassifier';
 import { useLanguage } from '../context/LanguageContext';
 import { useSensors } from '../context/SensorContext';
 import { useScanHistory } from '../context/ScanHistoryContext';
 import { usePlantJourney } from '../context/PlantJourneyContext';
+import { usePreferences } from '../context/PreferencesContext';
+import { buildWhatsAppShareUrl, buildWhatsAppSummaryText } from '../utils/whatsappShare';
 import { hapticScanTap } from '../utils/haptics';
 import { useOptionalXP } from '../context/XPContext';
 import { PrintableDiagnosticReport } from './PrintableDiagnosticReport';
@@ -50,6 +57,9 @@ const GoogleChatShareModal = lazy(() =>
 );
 const DiagnosticPrintModal = lazy(() =>
   import('./DiagnosticPrintModal').then((m) => ({ default: m.DiagnosticPrintModal }))
+);
+const ScanReportModal = lazy(() =>
+  import('./ScanReportModal').then((m) => ({ default: m.ScanReportModal }))
 );
 
 export interface DiagnosticExternalAction {
@@ -78,7 +88,9 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
   const xpCtx = useOptionalXP();
   const { addScan } = useScanHistory();
   const { plants, attachScanIdToPlant } = usePlantJourney();
+  const { lowDataMode, autoVoiceReadout } = usePreferences();
   const [selectedPlantId, setSelectedPlantId] = useState<string>(initialPlantId || '');
+  const [copiedSummary, setCopiedSummary] = useState<boolean>(false);
 
   useEffect(() => {
     if (initialPlantId) {
@@ -105,6 +117,7 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
   const [analysisProgress, setAnalysisProgress] = useState<number>(0);
   const [analysisStepText, setAnalysisStepText] = useState<string>('');
   const [diagnosticResult, setDiagnosticResult] = useState<DiagnosisResult | null>(null);
+  const [scannerError, setScannerError] = useState<{ messageEn: string; messageUr: string } | null>(null);
   const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState<boolean>(false);
@@ -113,6 +126,7 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
   const [isAudioLoading, setIsAudioLoading] = useState<boolean>(false);
   const [isChatModalOpen, setIsChatModalOpen] = useState<boolean>(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
 
   const scannerTopRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -123,6 +137,13 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
   const sensorContextRef = useRef(sensorContext);
   sensorContextRef.current = sensorContext;
   const scanRunIdRef = useRef(0);
+  const lastScanRequestRef = useRef<{
+    imageUri: string;
+    source: 'upload' | 'camera' | 'sample';
+    suggestedDiseaseId?: string;
+    sampleId?: string;
+    recordToHistory: boolean;
+  } | null>(null);
 
   const stopCamera = () => {
     if (mediaStreamRef.current) {
@@ -308,7 +329,37 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
     }
   };
 
-  const handleCaptureFromCamera = () => {
+  const prepareScanImageDataUri = (uri: string): Promise<string> => {
+    if (!uri.startsWith('data:')) return Promise.resolve(uri);
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const maxSide = lowDataMode ? 720 : 1152;
+          const quality = lowDataMode ? 0.72 : 0.85;
+          const scale = Math.min(1, maxSide / Math.max(img.width || 1, img.height || 1));
+          const w = Math.max(1, Math.round((img.width || maxSide) * scale));
+          const h = Math.max(1, Math.round((img.height || maxSide) * scale));
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+            return;
+          }
+        } catch {
+          // fallback
+        }
+        resolve(uri);
+      };
+      img.onerror = () => resolve(uri);
+      img.src = uri;
+    });
+  };
+
+  const handleCaptureFromCamera = async () => {
     if (!videoRef.current) return;
     hapticScanTap();
     const canvas = document.createElement('canvas');
@@ -317,7 +368,8 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
     const ctx = canvas.getContext('2d');
     if (ctx) {
       ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-      const dataUri = canvas.toDataURL('image/jpeg', 0.9);
+      const rawUri = canvas.toDataURL('image/jpeg', lowDataMode ? 0.72 : 0.88);
+      const dataUri = await prepareScanImageDataUri(rawUri);
       setSelectedImageUri(dataUri);
       setSourceType('camera');
       stopCamera();
@@ -330,8 +382,9 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUri = event.target?.result as string;
+    reader.onload = async (event) => {
+      const rawUri = event.target?.result as string;
+      const dataUri = await prepareScanImageDataUri(rawUri);
       setSelectedImageUri(dataUri);
       setSourceType('upload');
       runDiagnostic(dataUri, 'upload');
@@ -346,8 +399,9 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUri = event.target?.result as string;
+    reader.onload = async (event) => {
+      const rawUri = event.target?.result as string;
+      const dataUri = await prepareScanImageDataUri(rawUri);
       setSelectedImageUri(dataUri);
       setSourceType('upload');
       runDiagnostic(dataUri, 'upload');
@@ -377,6 +431,7 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
     hapticScanTap();
     stopAudioPlayback();
     setDiagnosticResult(null);
+    setScannerError(null);
     setShowSuccessToast(false);
     setCameraError(null);
     setActiveInputTab(mode);
@@ -401,14 +456,16 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
     recordToHistory: boolean = true
   ) => {
     const runId = ++scanRunIdRef.current;
+    lastScanRequestRef.current = { imageUri, source, suggestedDiseaseId, sampleId, recordToHistory };
     stopAudioPlayback();
+    setScannerError(null);
     setIsAnalyzing(true);
     setShowSuccessToast(false);
     setAnalysisProgress(25);
     setAnalysisStepText(
       isUrdu
-        ? 'مرحلہ 1: تصویر میں ٹماٹر کے پتے کی تصدیق ہو رہی ہے...'
-        : 'Step 1: Checking if this is a clear tomato leaf...'
+        ? 'مرحلہ 1: تصویر میں پودے اور ٹماٹر کے پتے کی تصدیق ہو رہی ہے...'
+        : 'Stage 1: Verifying botanical leaf & tomato foliage...'
     );
 
     const stepTimer1 = window.setTimeout(() => {
@@ -462,25 +519,38 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
         }
         if (result.isTomatoLeaf) {
           xpCtx?.completeMissionByEvent('scan_lower_leaf');
-          xpCtx?.awardXP(
-            40,
-            'Scan a Leaf +40 XP',
-            'پتے کا اسکین +40 XP',
-            undefined,
-            true
-          );
         }
       }
 
       if (result.isTomatoLeaf) {
         setShowSuccessToast(true);
         window.setTimeout(() => setShowSuccessToast(false), 4000);
+        if (autoVoiceReadout && recordToHistory) {
+          const textToRead = isUrdu
+            ? `شناخت: ${result.diseaseName}۔ ${result.summary}`
+            : `Detected: ${result.diseaseName}. ${result.summary}`;
+          playBrowserSpeechFallback(textToRead, isUrdu);
+        }
       }
-    } catch {
+    } catch (err) {
       window.clearTimeout(stepTimer1);
       window.clearTimeout(stepTimer2);
       if (scanRunIdRef.current === runId) {
         setIsAnalyzing(false);
+        setDiagnosticResult(null);
+        if (err instanceof ScannerServiceError) {
+          setScannerError({
+            messageEn: err.userMessageEn,
+            messageUr: err.userMessageUr
+          });
+        } else {
+          setScannerError({
+            messageEn:
+              'The AI Vision model is experiencing a brief traffic spike. Please tap Retry Scan to inspect your leaf accurately.',
+            messageUr:
+              'اے آئی وژن ماڈل اس وقت مصروف ہے۔ غلط نتیجہ دینے کے بجائے، برائے مہربانی چند سیکنڈ بعد دوبارہ اسکین کریں۔'
+          });
+        }
       }
     }
   };
@@ -519,9 +589,10 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
     } else if (externalAction.type === 'upload' && externalAction.file) {
       setActiveInputTab('upload');
       const reader = new FileReader();
-      reader.onload = (event) => {
-        const dataUri = event.target?.result as string;
-        if (dataUri) {
+      reader.onload = async (event) => {
+        const rawUri = event.target?.result as string;
+        if (rawUri) {
+          const dataUri = await prepareScanImageDataUri(rawUri);
           setSelectedImageUri(dataUri);
           setSourceType('upload');
           runDiagnostic(dataUri, 'upload');
@@ -1069,17 +1140,87 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
             </Suspense>
           )}
 
+          {/* Transient AI Service Notice with Clean Retry */}
+          {scannerError && !isAnalyzing && (
+            <div className="mt-6 pt-6 border-t border-[#cbdcd0]/60">
+              <div className="max-w-xl mx-auto p-6 rounded-3xl bg-[#fffbeb] border border-amber-300 shadow-xs text-center space-y-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 border border-amber-300 text-amber-950 text-xs font-mono font-bold">
+                  <AlertTriangle className="w-4 h-4 text-amber-700" />
+                  <span>{isUrdu ? 'اے آئی سروس عارضی طور پر مصروف ہے' : 'AI VISION SERVICE BUSY'}</span>
+                </div>
+                <p className="text-sm font-semibold text-[#13281c] leading-relaxed">
+                  {isUrdu ? scannerError.messageUr : scannerError.messageEn}
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  {lastScanRequestRef.current && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const req = lastScanRequestRef.current;
+                        if (req) {
+                          void runDiagnostic(
+                            req.imageUri,
+                            req.source,
+                            req.suggestedDiseaseId,
+                            req.sampleId,
+                            req.recordToHistory
+                          );
+                        }
+                      }}
+                      className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#14532d] hover:bg-[#0f3d21] text-white text-xs font-bold inline-flex items-center gap-2 shadow-sm cursor-pointer"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      <span>{isUrdu ? 'دوبارہ اسکین کریں' : 'Retry Scan'}</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleScanAnotherLeaf('upload')}
+                    className="min-h-[44px] px-4 py-2.5 rounded-xl bg-white border border-[#cbdcd0] hover:bg-[#edf5ef] text-[#13281c] text-xs font-semibold inline-flex items-center gap-2 cursor-pointer"
+                  >
+                    <UploadCloud className="w-4 h-4 text-[#166534]" />
+                    <span>{isUrdu ? 'دوسری تصویر منتخب کریں' : 'Upload Another Photo'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ================================================================= */}
           {/* STAGE 1 REJECTION SCREEN: NON-TOMATO, UNKNOWN, BLURRY, OR NON-LEAF */}
           {/* ================================================================= */}
           {diagnosticResult && !isAnalyzing && !diagnosticResult.isTomatoLeaf && (
             <div className="mt-6 pt-8 border-t border-[#cbdcd0]/60 text-center">
-              <div className="max-w-2xl mx-auto p-6 sm:p-8 rounded-3xl border shadow-sm bg-[#faf8f2] border-amber-300">
+              <div
+                className={`max-w-2xl mx-auto p-6 sm:p-8 rounded-3xl border shadow-sm ${
+                  diagnosticResult.stage1.detectedSubjectCategory === 'human'
+                    ? 'bg-[#fef2f2] border-rose-300'
+                    : 'bg-[#faf8f2] border-amber-300'
+                }`}
+              >
                 {/* Status Badge */}
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 border border-amber-300 text-xs font-mono font-bold text-amber-900 mb-4">
-                  <ShieldAlert className="w-4 h-4 text-amber-700" />
+                <div
+                  className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-mono font-bold mb-4 ${
+                    diagnosticResult.stage1.detectedSubjectCategory === 'human'
+                      ? 'bg-rose-100 border-rose-300 text-rose-900'
+                      : 'bg-amber-100 border-amber-300 text-amber-900'
+                  }`}
+                >
+                  {diagnosticResult.stage1.detectedSubjectCategory === 'human' ? (
+                    <UserX className="w-4 h-4 text-rose-700" />
+                  ) : (
+                    <ShieldAlert className="w-4 h-4 text-amber-700" />
+                  )}
                   <span>
-                    {isUrdu
+                    {diagnosticResult.stage1.detectedSubjectCategory === 'human'
+                      ? isUrdu
+                        ? 'انسان کی شناخت ہوئی — پودا نہیں'
+                        : 'HUMAN / PERSON DETECTED'
+                      : diagnosticResult.stage1.detectedSubjectCategory === 'green_object'
+                      ? isUrdu
+                        ? 'سبز غیر نباتاتی شے — پتا نہیں'
+                        : 'GREEN NON-LEAF OBJECT'
+                      : isUrdu
                       ? 'یہ ٹماٹر کا پتہ نہیں ہے'
                       : 'NOT A TOMATO LEAF'}
                   </span>
@@ -1098,38 +1239,59 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
                   </div>
                 </div>
 
-                {/* Primary Rejection Header (Strict Text Matching User Instructions) */}
+                {/* Primary Rejection Header */}
                 <h3 className="font-display text-2xl sm:text-3xl font-bold text-[#13281c] mb-3">
-                  {diagnosticResult.stage1.status === 'non_tomato_leaf' ? (
-                    isUrdu ? t.scanner.notTomatoTitle : 'This is not a tomato leaf.'
-                  ) : diagnosticResult.stage1.status === 'unknown_plant' ? (
-                    isUrdu ? t.scanner.unknownPlantTitle : 'Uncertain plant identification.'
-                  ) : diagnosticResult.stage1.status === 'blurry' ? (
-                    isUrdu ? t.scanner.blurryTitle : 'The image is too blurry.'
-                  ) : (
-                    isUrdu ? t.scanner.notLeafTitle : "We couldn't find a plant leaf in this photo."
-                  )}
+                  {diagnosticResult.stage1.rejectionTitle || diagnosticResult.stage1.urduRejectionTitle
+                    ? isUrdu
+                      ? diagnosticResult.stage1.urduRejectionTitle || t.scanner.notLeafTitle
+                      : diagnosticResult.stage1.rejectionTitle || "This isn't a plant leaf."
+                    : diagnosticResult.stage1.status === 'non_tomato_leaf'
+                    ? isUrdu
+                      ? t.scanner.notTomatoTitle
+                      : 'This is not a tomato leaf.'
+                    : diagnosticResult.stage1.status === 'unknown_plant'
+                    ? isUrdu
+                      ? t.scanner.unknownPlantTitle
+                      : 'Uncertain plant identification.'
+                    : diagnosticResult.stage1.status === 'blurry'
+                    ? isUrdu
+                      ? t.scanner.blurryTitle
+                      : 'The image is too blurry.'
+                    : isUrdu
+                    ? t.scanner.notLeafTitle
+                    : "We couldn't find a plant leaf in this photo."}
                 </h3>
 
                 {/* Exact Required Instruction Message */}
-                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-400 text-amber-950 font-semibold text-sm sm:text-base leading-relaxed mb-6">
-                  {diagnosticResult.stage1.status === 'non_tomato_leaf' ? (
-                    isUrdu
+                <div
+                  className={`p-4 rounded-2xl border font-semibold text-sm sm:text-base leading-relaxed mb-6 ${
+                    diagnosticResult.stage1.detectedSubjectCategory === 'human'
+                      ? 'bg-rose-500/10 border-rose-300 text-rose-950'
+                      : 'bg-amber-500/10 border-amber-400 text-amber-950'
+                  }`}
+                >
+                  {diagnosticResult.stage1.detectedSubjectCategory === 'human' ||
+                  diagnosticResult.stage1.detectedSubjectCategory === 'green_object'
+                    ? isUrdu
+                      ? diagnosticResult.stage1.urduMessage
+                      : diagnosticResult.stage1.message
+                    : diagnosticResult.stage1.status === 'non_tomato_leaf'
+                    ? isUrdu
                       ? 'یہ ٹماٹر کا پتہ نہیں ہے۔ برائے مہربانی ٹماٹر کے پتے کی واضح تصویر اپلوڈ کریں۔'
                       : 'This is not a tomato leaf. Please upload a clear image of a tomato leaf.'
-                  ) : diagnosticResult.stage1.status === 'unknown_plant' ? (
-                    isUrdu
+                    : diagnosticResult.stage1.status === 'unknown_plant'
+                    ? isUrdu
                       ? 'پودے کی شناخت غیر یقینی ہے۔ یہ ٹماٹر کا پتہ معلوم نہیں ہوتا۔ برائے مہربانی ٹماٹر کے پتے کی واضح تصویر اپلوڈ کریں۔'
                       : 'Uncertain plant identification. This does not appear to be a tomato leaf. Please upload a clear image of a tomato leaf.'
-                  ) : diagnosticResult.stage1.status === 'blurry' ? (
-                    isUrdu
+                    : diagnosticResult.stage1.status === 'blurry'
+                    ? isUrdu
                       ? 'تصویر بہت دھندلی ہے۔ برائے مہربانی زیادہ واضح تصویر اپلوڈ کریں۔'
                       : 'The image is too blurry. Please upload a clearer image.'
-                  ) : (
-                    isUrdu
-                      ? 'اس تصویر میں پودے کا پتہ نہیں ملا۔ برائے مہربانی کسی پودے کے پتے کی تصویر اپلوڈ کریں۔'
-                      : "We couldn't find a plant leaf in this photo. Please upload a leaf image."
-                  )}
+                    : isUrdu
+                    ? diagnosticResult.stage1.urduMessage ||
+                      'اس تصویر میں پودے کا پتہ نہیں ملا۔ برائے مہربانی کسی پودے کے پتے کی تصویر اپلوڈ کریں۔'
+                    : diagnosticResult.stage1.message ||
+                      "We couldn't find a plant leaf in this photo. Please upload a leaf image."}
                 </div>
 
                 {/* Detailed Botanical Diagnostics of Why Rejection Occurred */}
@@ -1144,29 +1306,47 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2.5 mb-4">
-                    <div className="p-2.5 rounded-xl bg-[#faf8f2] border border-[#cbdcd0]">
-                      <span className="text-[10px] text-[#3d5947] uppercase font-mono block">
-                        {isUrdu ? 'شناخت شدہ نمونہ' : 'Detected Specimen'}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-4">
+                    <div
+                      className={`p-2.5 rounded-xl border ${
+                        diagnosticResult.isPlantLeaf
+                          ? 'bg-[#edf5ef] border-emerald-300'
+                          : 'bg-[#fef2f2] border-rose-200'
+                      }`}
+                    >
+                      <span className="text-[10px] uppercase font-mono font-bold block text-[#3d5947]">
+                        {isUrdu ? 'مرحلہ 1A: پودے کا پتہ' : 'Stage 1A · Botanical Leaf Check'}
                       </span>
                       <strong className="text-xs text-[#13281c]">
-                        {diagnosticResult.stage1.speciesCommonName}
+                        {diagnosticResult.isPlantLeaf
+                          ? isUrdu
+                            ? `✓ اصلی پتہ تصدیق شدہ (${diagnosticResult.stage1.speciesCommonName})`
+                            : `✓ Real Plant Leaf (${diagnosticResult.stage1.speciesCommonName})`
+                          : isUrdu
+                          ? `✕ پودے کا پتہ نہیں (${diagnosticResult.stage1.speciesCommonName})`
+                          : `✕ Not a Plant Leaf (${diagnosticResult.stage1.speciesCommonName})`}
                       </strong>
-                      <div className="text-[11px] italic text-[#3d5947]">
-                        {diagnosticResult.stage1.speciesScientificName}
-                      </div>
                     </div>
 
-                    <div className="p-2.5 rounded-xl bg-[#faf8f2] border border-[#cbdcd0]">
-                      <span className="text-[10px] text-[#3d5947] uppercase font-mono block">
-                        {isUrdu ? 'شناخت کی شرحِ یقین' : 'Identification Confidence'}
+                    <div
+                      className={`p-2.5 rounded-xl border ${
+                        diagnosticResult.isTomatoLeaf
+                          ? 'bg-[#edf5ef] border-emerald-300'
+                          : 'bg-[#fffbeb] border-amber-300'
+                      }`}
+                    >
+                      <span className="text-[10px] uppercase font-mono font-bold block text-[#3d5947]">
+                        {isUrdu ? 'مرحلہ 1B: ٹماٹر کا پتہ' : 'Stage 1B · Tomato Species Check'}
                       </span>
-                      <strong className="text-xs text-emerald-800">
-                        {diagnosticResult.stage1.confidence}%
+                      <strong className="text-xs text-[#92400e]">
+                        {diagnosticResult.isPlantLeaf
+                          ? isUrdu
+                            ? '✕ یہ ٹماٹر (Solanum lycopersicum) کا پتہ نہیں ہے'
+                            : '✕ Does not belong to Tomato (Solanum lycopersicum)'
+                          : isUrdu
+                          ? '— مرحلہ 1A ناکام ہونے پر روکا گیا'
+                          : '— Skipped (No plant leaf detected)'}
                       </strong>
-                      <div className="text-[11px] text-[#3d5947]">
-                        {isUrdu ? 'ٹماٹر کے پتے کے خواص مفقود ہیں' : 'Lacks Solanum lycopersicum traits'}
-                      </div>
                     </div>
                   </div>
 
@@ -1223,6 +1403,15 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
                     <Leaf className="w-3.5 h-3.5 shrink-0 text-emerald-700" />
                     <span>{isUrdu ? 'ٹماٹر کا نمونہ آزمائیں' : 'Try Tomato Sample'}</span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsReportModalOpen(true)}
+                    className="min-h-[44px] px-4 py-2.5 bg-[#fffbeb] border border-amber-400 hover:bg-amber-100 text-[#92400e] font-bold text-xs rounded-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer"
+                  >
+                    <Flag className="w-3.5 h-3.5 shrink-0 text-[#b45309]" />
+                    <span>{isUrdu ? 'غلط نتیجہ رپورٹ کریں' : 'Report Wrong Scan'}</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1258,9 +1447,9 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
                   </div>
                 </div>
 
-                <div className="text-[11px] font-mono text-emerald-800 flex items-center gap-3">
-                  <span>✓ {isUrdu ? 'پتے کے کنارے' : 'Leaf Edges'}</span>
-                  <span>✓ {isUrdu ? 'سبز رنگت' : 'Leaf Color'}</span>
+                <div className="text-[11px] font-mono text-emerald-800 flex flex-wrap items-center gap-3">
+                  <span>✓ {isUrdu ? '1A: پودے کا پتہ' : '1A: Real Leaf Verified'}</span>
+                  <span>✓ {isUrdu ? '1B: ٹماٹر کی تصدیق' : '1B: Tomato Confirmed'}</span>
                 </div>
               </div>
 
@@ -1422,8 +1611,23 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
                     </div>
 
                     <p className="text-sm text-[#13281c] leading-relaxed">
-                      {diagnosticResult.summary}
+                      {isUrdu
+                        ? diagnosticResult.urduSummary || diagnosticResult.summary
+                        : diagnosticResult.summary}
                     </p>
+
+                    {(diagnosticResult.diseaseDefinition || diagnosticResult.urduDiseaseDefinition) && (
+                      <div className="mt-3 p-3.5 rounded-xl bg-white/85 border border-emerald-200 text-xs text-[#13281c] leading-relaxed space-y-1">
+                        <div className="font-bold text-[11px] uppercase tracking-wider text-emerald-900">
+                          {isUrdu ? 'بیماری کی تعریف (یہ کیا ہے؟)' : 'Disease Definition — What Is This?'}
+                        </div>
+                        <p>
+                          {isUrdu
+                            ? diagnosticResult.urduDiseaseDefinition || diagnosticResult.diseaseDefinition
+                            : diagnosticResult.diseaseDefinition}
+                        </p>
+                      </div>
+                    )}
 
                     <div className="mt-3.5 pt-3 border-t border-emerald-300/70 flex flex-wrap items-center gap-2.5">
                       <button
@@ -1568,60 +1772,77 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
                     </div>
                   </div>
 
-                  {/* 7-Day Field Recovery Roadmap */}
+                  {/* Disease-Specific Care Routine */}
                   <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#cbdcd0] shadow-xs space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <div className="font-display text-xs font-bold uppercase tracking-wider text-[#13281c] flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-emerald-700" />
-                        <span>{isUrdu ? '7 روزہ کسان بحالی شیڈول' : '7-DAY FIELD RECOVERY ROADMAP'}</span>
+                        <Calendar className="w-4 h-4 text-emerald-700 shrink-0" />
+                        <span>
+                          {isUrdu
+                            ? `${getUrduDiseaseName(diagnosticResult.diseaseId, diagnosticResult.diseaseName)} — خصوصی نگہداشت کا شیڈول`
+                            : `TAILORED CARE ROUTINE — ${diagnosticResult.diseaseName.toUpperCase()}`}
+                        </span>
                       </div>
-                      <span className="text-[10px] font-mono text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-semibold">
-                        {isUrdu ? 'مرحلہ وار شیڈول' : 'Recovery Steps'}
+                      <span className="text-[10px] font-mono text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-semibold shrink-0">
+                        {isUrdu ? 'بیماری کے مطابق' : 'Condition-Specific'}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-2.5">
-                      <div className="p-3 rounded-xl bg-[#faf8f2] border border-[#cbdcd0]/80">
-                        <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase">
-                          {isUrdu ? 'پہلا دن' : 'Day 01'}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {(diagnosticResult.careRoutine && diagnosticResult.careRoutine.length > 0
+                        ? diagnosticResult.careRoutine
+                        : [
+                            {
+                              phase: 'Day 01 · Action',
+                              urduPhase: 'پہلا دن · فوری اقدام',
+                              title: 'Primary Treatment Step',
+                              urduTitle: 'بنیادی علاج',
+                              instruction:
+                                diagnosticResult.treatment.organic[0] ||
+                                'Follow the targeted organic care steps above.',
+                              urduInstruction:
+                                diagnosticResult.treatment.organic[0] ||
+                                'اوپر دی گئی نامیاتی احتیاط پر عمل کریں۔'
+                            },
+                            {
+                              phase: 'Water & Canopy',
+                              urduPhase: 'پانی اور پتے',
+                              title: 'Moisture & Airflow Routine',
+                              urduTitle: 'نمی اور ہوا کی ترتیب',
+                              instruction:
+                                diagnosticResult.treatment.cultural[0] ||
+                                'Water at soil level early morning and keep lower foliage dry.',
+                              urduInstruction:
+                                'پانی صبح سویرے جڑوں میں دیں اور پتوں کو خشک رکھیں۔'
+                            },
+                            {
+                              phase: 'Day 07 · Check',
+                              urduPhase: 'ساتواں دن · جائزہ',
+                              title: 'Follow-Up Inspection',
+                              urduTitle: 'نئے پتوں کا معائنہ',
+                              instruction:
+                                diagnosticResult.treatment.prevention[0] ||
+                                'Inspect new top shoots after 7 days to confirm healthy clean growth.',
+                              urduInstruction:
+                                'سات دن بعد اوپری نئی کونپلوں کا معائنہ کریں۔'
+                            }
+                          ]
+                      ).map((step, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3.5 rounded-xl bg-[#faf8f2] border border-[#cbdcd0]/80 space-y-1"
+                        >
+                          <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase">
+                            {isUrdu ? step.urduPhase : step.phase}
+                          </div>
+                          <div className="font-bold text-xs text-[#13281c]">
+                            {isUrdu ? step.urduTitle : step.title}
+                          </div>
+                          <p className="text-[11px] text-[#3d5947] leading-relaxed">
+                            {isUrdu ? step.urduInstruction : step.instruction}
+                          </p>
                         </div>
-                        <div className="font-bold text-xs text-[#13281c] mt-0.5">
-                          {isUrdu ? 'نامیاتی اسپرے' : 'Targeted Spray'}
-                        </div>
-                        <p className="text-[11px] text-[#3d5947] mt-1 leading-snug">
-                          {isUrdu
-                            ? 'شام کے وقت نیم کا تیل یا تانبے کا مرکب اسپرے کریں۔'
-                            : 'Apply organic copper or neem extract in early evening to stop spores.'}
-                        </p>
-                      </div>
-
-                      <div className="p-3 rounded-xl bg-[#faf8f2] border border-[#cbdcd0]/80">
-                        <div className="text-[10px] font-mono font-bold text-amber-800 uppercase">
-                          {isUrdu ? 'تیسرا دن' : 'Day 03'}
-                        </div>
-                        <div className="font-bold text-xs text-[#13281c] mt-0.5">
-                          {isUrdu ? 'جھلسے ہوئے پتے تلف' : 'Sanitation Pruning'}
-                        </div>
-                        <p className="text-[11px] text-[#3d5947] mt-1 leading-snug">
-                          {isUrdu
-                            ? 'زیریں حصے کے شدید متاثرہ پتے کاٹ کر کھیت سے دور دفن کریں۔'
-                            : 'Prune severely infected lower leaves and bury far from field.'}
-                        </p>
-                      </div>
-
-                      <div className="p-3 rounded-xl bg-[#faf8f2] border border-[#cbdcd0]/80">
-                        <div className="text-[10px] font-mono font-bold text-emerald-800 uppercase">
-                          {isUrdu ? 'ساتواں دن' : 'Day 07'}
-                        </div>
-                        <div className="font-bold text-xs text-[#13281c] mt-0.5">
-                          {isUrdu ? 'نئی شاخوں کی نگہداشت' : 'Shoot Regeneration'}
-                        </div>
-                        <p className="text-[11px] text-[#3d5947] mt-1 leading-snug">
-                          {isUrdu
-                            ? 'پودے کے اوپری سرے پر تازہ، سبز نئی کونپلوں کی تصدیق کریں۔'
-                            : 'Inspect apical foliage for clean, vigorous green growth.'}
-                        </p>
-                      </div>
+                      ))}
                     </div>
                   </div>
 
@@ -1654,7 +1875,78 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
                         title={isUrdu ? 'گوگل چیٹ پر رپورٹ بھیجیں' : 'Send Alert to Google Chat Space'}
                       >
                         <MessageSquare className="w-3.5 h-3.5 text-emerald-700" />
-                        <span>{isUrdu ? 'گوگل چیٹ پر بھیجیں' : 'Share to Google Chat'}</span>
+                        <span>{isUrdu ? 'گوگل چیٹ' : 'Google Chat'}</span>
+                      </button>
+
+                      {/* One-Tap WhatsApp Share Anchor */}
+                      <a
+                        href={buildWhatsAppShareUrl(
+                          buildWhatsAppSummaryText(
+                            {
+                              diseaseName: diagnosticResult.diseaseName,
+                              scientificName: diagnosticResult.scientificName,
+                              confidence: diagnosticResult.confidence,
+                              severity: diagnosticResult.severity,
+                              summary: diagnosticResult.summary,
+                              organicSteps: diagnosticResult.treatment.organic
+                            },
+                            isUrdu
+                          )
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 rounded-xl bg-[#166534] hover:bg-[#14532d] text-white text-xs font-bold transition-all flex items-center gap-2 shadow-xs cursor-pointer"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        <span>{isUrdu ? 'واٹس ایپ شیئر' : 'WhatsApp'}</span>
+                      </a>
+
+                      {/* Copy Field Summary Fallback */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const txt = buildWhatsAppSummaryText(
+                            {
+                              diseaseName: diagnosticResult.diseaseName,
+                              scientificName: diagnosticResult.scientificName,
+                              confidence: diagnosticResult.confidence,
+                              severity: diagnosticResult.severity,
+                              summary: diagnosticResult.summary,
+                              organicSteps: diagnosticResult.treatment.organic
+                            },
+                            isUrdu
+                          );
+                          void navigator.clipboard?.writeText(txt).then(() => {
+                            setCopiedSummary(true);
+                            window.setTimeout(() => setCopiedSummary(false), 2500);
+                          });
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-white hover:bg-[#edf5ef] border border-[#cbdcd0] text-xs font-bold text-[#13281c] transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        {copiedSummary ? (
+                          <Check className="w-3.5 h-3.5 text-[#166534]" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5 text-[#5b7463]" />
+                        )}
+                        <span>
+                          {copiedSummary
+                            ? isUrdu
+                              ? 'کاپی ہو گیا'
+                              : 'Copied'
+                            : isUrdu
+                            ? 'خلاصہ کاپی'
+                            : 'Copy'}
+                        </span>
+                      </button>
+
+                      {/* Report Incorrect AI Scan Feedback */}
+                      <button
+                        type="button"
+                        onClick={() => setIsReportModalOpen(true)}
+                        className="px-4 py-2 rounded-xl bg-[#fffbeb] hover:bg-amber-100 border border-amber-300 text-xs font-bold text-[#92400e] transition-all flex items-center gap-2 shadow-xs active:scale-95 cursor-pointer"
+                      >
+                        <Flag className="w-3.5 h-3.5 text-[#b45309]" />
+                        <span>{isUrdu ? 'غلط نتیجہ رپورٹ کریں' : 'Report Wrong Scan'}</span>
                       </button>
                     </div>
 
@@ -1706,6 +1998,17 @@ export const DiagnosticStudio: React.FC<DiagnosticStudioProps> = ({
           <DiagnosticPrintModal
             isOpen={isPrintModalOpen}
             onClose={() => setIsPrintModalOpen(false)}
+            result={diagnosticResult}
+          />
+        </Suspense>
+      )}
+
+      {/* AI Scanner Feedback & Bug Report Modal */}
+      {diagnosticResult && isReportModalOpen && (
+        <Suspense fallback={null}>
+          <ScanReportModal
+            isOpen={isReportModalOpen}
+            onClose={() => setIsReportModalOpen(false)}
             result={diagnosticResult}
           />
         </Suspense>

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
-  Bot,
+  BookOpenCheck,
   Camera,
   CheckCheck,
   Droplets,
@@ -9,20 +9,21 @@ import {
   Loader2,
   Mic,
   MicOff,
-  RefreshCw,
   Send,
   Share2,
-  Sparkles,
   Volume2,
   VolumeX
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import { useScanHistory } from '../context/ScanHistoryContext';
 import { useSensors } from '../context/SensorContext';
 import { usePlantJourney } from '../context/PlantJourneyContext';
+import { usePreferences } from '../context/PreferencesContext';
 import { useOptionalXP } from '../context/XPContext';
 import { DiagnosisResult } from '../types/disease';
 import { TOMATO_DISEASES } from '../data/tomatoDiseases';
+import { generateAgronomicReply } from '../services/agronomicAdvisor';
 import { GoogleChatShareModal } from './GoogleChatShareModal';
 import type { LiveWeatherSnapshot } from './WeatherAlertCard';
 
@@ -76,20 +77,18 @@ interface AssistantMessage {
   text: string;
   timestamp: string;
   contextTags?: string[];
-  isError?: boolean;
-  retryPrompt?: string;
 }
 
-const STORAGE_KEY = 'agrovision_ai_assistant_history_v2';
+const STORAGE_KEY = 'agrovision_advisor_thread_v3';
 
 function getInitialGreeting(isUrdu: boolean): AssistantMessage {
   return {
     id: 'msg_welcome',
-    sender: isUrdu ? 'ایگرو وژن اے آئی ماہر' : 'AgroVision AI Agronomist',
+    sender: isUrdu ? 'ایگرو وژن زرعی مشیر' : 'Tomato Agronomic Advisor',
     isMe: false,
     text: isUrdu
-      ? 'السلام علیکم! میں ایگرو وژن اے آئی پلانٹ ہیلتھ اسسٹنٹ ہوں۔ آپ ٹماٹر کے پتوں کے دھبے، مٹی کی نمی/پی ایچ، موسمی خطرہ یا نامیاتی اسپرے کے بارے میں اردو یا انگریزی میں سوال پوچھ سکتے ہیں۔'
-      : 'Assalam-o-Alaikum! I am your AgroVision AI Plant Health Assistant (Gemini 4 Hydrogen). Ask about tomato leaf spots, soil moisture/pH balance, organic treatment timing, or attach your latest leaf scan below.',
+      ? 'السلام علیکم! میں ایگرو وژن ٹماٹر زرعی مشیر ہوں (آف لائن اور آن لائن 100% دستیاب)۔ آپ پیلے پتوں، جھلساؤ، سفید مکھی، اسپرے ٹینکی خوراک، مٹی کی نمی یا منڈی ریٹس کے بارے میں لکھ کر یا مائیک دبا کر پوچھ سکتے ہیں۔'
+      : 'Assalam-o-Alaikum! I am your Tomato Agronomic Advisor (instant & always available offline or online). Ask about yellow leaves, Early/Late Blight, whiteflies, 16L/20L spray tanki dosages, soil pH/irrigation, or use the microphone button to speak.',
     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   };
 }
@@ -122,9 +121,11 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
   onPendingQuestionHandled
 }) => {
   const { isUrdu } = useLanguage();
+  const { activeProfile } = useAuth();
   const { scans } = useScanHistory();
   const { moistureEnabled, moisturePercent, phEnabled, soilPh } = useSensors();
   const { plants } = usePlantJourney();
+  const { preferredRegion, growingSystem } = usePreferences();
   const xpCtx = useOptionalXP();
 
   const [messages, setMessages] = useState<AssistantMessage[]>(() => readStoredMessages(isUrdu));
@@ -136,6 +137,7 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
   const [isGoogleChatOpen, setIsGoogleChatOpen] = useState(false);
 
   // Voice Input & Audio Output states
+  const [micLang, setMicLang] = useState<'ur-PK' | 'en-US'>(() => (isUrdu ? 'ur-PK' : 'en-US'));
   const [isListening, setIsListening] = useState(false);
   const [interimSpeech, setInterimSpeech] = useState('');
   const [speechNotice, setSpeechNotice] = useState<string | null>(null);
@@ -147,6 +149,10 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
 
   const latestScan = scans[0] || null;
   const activePlant = plants.find((p) => p.id === selectedPlantId) || plants[0] || null;
+
+  useEffect(() => {
+    setMicLang(isUrdu ? 'ur-PK' : 'en-US');
+  }, [isUrdu]);
 
   useEffect(() => {
     try {
@@ -183,7 +189,7 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
     if (!pendingQuestion || !pendingQuestion.text.trim()) return;
     if (handledQuestionNonceRef.current === pendingQuestion.nonce) return;
     handledQuestionNonceRef.current = pendingQuestion.nonce;
-    void sendAssistantPrompt(pendingQuestion.text);
+    void sendAdvisorPrompt(pendingQuestion.text);
     onPendingQuestionHandled?.();
   }, [pendingQuestion?.nonce]);
 
@@ -206,11 +212,13 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
     stopSpeechAudio();
     setSpeakingMsgId(msg.id);
 
+    const hasUrduScript = /[\u0600-\u06FF]/.test(msg.text);
+
     try {
       const res = await fetch('/api/tts-urdu', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: msg.text, isUrdu })
+        body: JSON.stringify({ text: msg.text, isUrdu: hasUrduScript || isUrdu })
       });
       const json = await res.json();
       if (res.ok && json?.audioBase64) {
@@ -222,12 +230,12 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
         return;
       }
     } catch {
-      // Fallback cleanly to Web SpeechSynthesis
+      // Fallback cleanly to browser SpeechSynthesis
     }
 
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       const utter = new SpeechSynthesisUtterance(msg.text);
-      utter.lang = isUrdu ? 'ur-PK' : 'en-US';
+      utter.lang = hasUrduScript || isUrdu ? 'ur-PK' : 'en-US';
       utter.onend = () => setSpeakingMsgId(null);
       utter.onerror = () => setSpeakingMsgId(null);
       window.speechSynthesis.speak(utter);
@@ -260,8 +268,8 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
     if (!SpeechRec) {
       setSpeechNotice(
         isUrdu
-          ? 'اس براؤزر میں وائس ٹائپنگ دستیاب نہیں۔ نیچے ٹائپ کریں۔'
-          : 'Voice dictation unavailable in this browser. Please type your question below.'
+          ? 'اس براؤزر میں مائیکروفون ٹائپنگ دستیاب نہیں۔ برائے مہربانی نیچے سوال لکھیں۔'
+          : 'Browser voice dictation is unavailable here. Please type your question below.'
       );
       return;
     }
@@ -270,7 +278,7 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
       const recognition = new SpeechRec();
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = isUrdu ? 'ur-PK' : 'en-US';
+      recognition.lang = micLang;
       recognition.onresult = (event: SpeechRecognitionEventLike) => {
         let finalTranscript = '';
         let interimTranscript = '';
@@ -286,11 +294,17 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
         }
         setInterimSpeech(interimTranscript.trim());
       };
-      recognition.onerror = () => {
+      recognition.onerror = (ev) => {
         setIsListening(false);
         setInterimSpeech('');
         setSpeechNotice(
-          isUrdu ? 'مائیکروفون تک رسائی نہیں ملی۔' : 'Microphone access blocked or unavailable.'
+          ev?.error === 'not-allowed'
+            ? isUrdu
+              ? 'براؤزر میں مائیکروفون کی اجازت بند ہے۔ سیٹنگز سے اجازت دیں یا نیچے ٹائپ کریں۔'
+              : 'Microphone permission was blocked. Allow mic access in browser settings or type below.'
+            : isUrdu
+            ? 'آواز ریکارڈ کرنے میں مسئلہ آیا۔ دوبارہ کوشش کریں یا ٹائپ کریں۔'
+            : 'Could not hear clearly. Tap the mic again or type your question.'
         );
       };
       recognition.onend = () => {
@@ -303,10 +317,15 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
       setIsListening(true);
     } catch {
       setIsListening(false);
+      setSpeechNotice(
+        isUrdu
+          ? 'مائیکروفون شروع نہیں ہو سکا۔ نیچے ٹائپ کریں۔'
+          : 'Unable to start microphone here. Please type your question.'
+      );
     }
   };
 
-  const sendAssistantPrompt = async (promptText: string) => {
+  const sendAdvisorPrompt = async (promptText: string) => {
     const clean = promptText.trim();
     if (!clean || isSending) return;
     if (isListening) stopDictation();
@@ -314,7 +333,9 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
     const tags: string[] = [];
     if (includeLatestScan && latestScan) tags.push(`${latestScan.diseaseName} (${latestScan.confidence}%)`);
     if (includeSoilWeather) {
-      tags.push(`Moisture ${moistureEnabled ? `${moisturePercent}%` : 'OFF'} · pH ${phEnabled ? soilPh.toFixed(1) : 'OFF'}`);
+      tags.push(
+        `Moisture ${moistureEnabled ? `${moisturePercent}%` : 'OFF'} · pH ${phEnabled ? soilPh.toFixed(1) : 'OFF'}`
+      );
     }
     if (activePlant) tags.push(activePlant.name);
 
@@ -328,107 +349,86 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
       contextTags: tags.length > 0 ? tags : undefined
     };
 
-    const nextThread = [...messages.filter((m) => !m.isError), userMsg];
-    setMessages(nextThread);
+    setMessages((prev) => [...prev, userMsg]);
     setDraft('');
     setIsSending(true);
 
-    try {
-      const res = await fetch('/api/assistant', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          language: isUrdu ? 'ur' : 'en',
-          messages: nextThread.slice(-12).map((m) => ({ isMe: m.isMe, text: m.text })),
-          latestScan:
-            includeLatestScan && latestScan
-              ? {
-                  diseaseName: latestScan.diseaseName,
-                  confidence: latestScan.confidence,
-                  severity: latestScan.severity,
-                  summary: latestScan.summary
-                }
-              : undefined,
-          soilContext: includeSoilWeather
+    // Brief natural turn feedback (~180ms), always deterministic & 100% reliable without API failure
+    window.setTimeout(() => {
+      const replyText = generateAgronomicReply({
+        question: clean,
+        language: isUrdu ? 'ur' : 'en',
+        growerName: activeProfile?.displayName,
+        preferredRegion,
+        growingSystem,
+        latestScan:
+          includeLatestScan && latestScan
             ? {
-                moistureEnabled,
-                moisturePercent,
-                phEnabled,
-                soilPh,
-                regionName: liveWeather?.locationEn || 'Pakistan Tomato Belt',
-                sourceType: 'Live Soil & Probe Context'
+                diseaseId: latestScan.diseaseId,
+                diseaseName: latestScan.diseaseName,
+                confidence: latestScan.confidence,
+                severity: latestScan.severity,
+                summary: latestScan.summary,
+                organicTreatment: latestScan.organicTreatment
               }
             : undefined,
-          weatherContext:
-            includeSoilWeather && liveWeather
-              ? {
-                  location: liveWeather.locationEn,
-                  tempC: liveWeather.current.tempC,
-                  humidity: liveWeather.current.humidity,
-                  riskLevel: liveWeather.risk.level,
-                  watchCondition: liveWeather.risk.watchCondition
-                }
-              : undefined,
-          activePlant: activePlant
+        soilContext: includeSoilWeather
+          ? {
+              moistureEnabled,
+              moisturePercent,
+              phEnabled,
+              soilPh,
+              regionName: liveWeather?.locationEn || 'Pakistan Tomato Belt'
+            }
+          : undefined,
+        weatherContext:
+          includeSoilWeather && liveWeather
             ? {
-                name: activePlant.name,
-                stage: activePlant.stage,
-                healthStatus: activePlant.healthStatus,
-                cultivar: activePlant.cultivar
+                location: liveWeather.locationEn,
+                tempC: liveWeather.current.tempC,
+                humidity: liveWeather.current.humidity,
+                riskLevel: liveWeather.risk.level,
+                watchCondition: liveWeather.risk.watchCondition
               }
-            : undefined
-        })
+            : undefined,
+        activePlant: activePlant
+          ? {
+              name: activePlant.name,
+              stage: activePlant.stage,
+              healthStatus: activePlant.healthStatus,
+              cultivar: activePlant.cultivar
+            }
+          : undefined
       });
 
-      const data = await res.json();
-      if (!res.ok || !data?.reply) {
-        throw new Error(data?.error || 'AI Plant Health Assistant did not return a reply.');
-      }
-
-      const aiMsg: AssistantMessage = {
-        id: `ai_${Date.now()}`,
-        sender: isUrdu ? 'ایگرو وژن اے آئی ماہر' : 'AgroVision AI · Gemini 4',
+      const advisorMsg: AssistantMessage = {
+        id: `adv_${Date.now()}`,
+        sender: isUrdu ? 'ایگرو وژن زرعی مشیر' : 'Tomato Agronomic Advisor',
         isMe: false,
-        text: data.reply,
+        text: replyText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
-      setMessages((prev) => [...prev, aiMsg]);
-      xpCtx?.completeMissionByEvent('learning_activity');
-      xpCtx?.awardXP(15, 'AI Agronomist Consultation (+15 XP)', 'اے آئی مشورہ (+15 XP)', undefined, false);
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : 'Unable to reach AI Assistant.';
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `err_${Date.now()}`,
-          sender: isUrdu ? 'سسٹم الرٹ' : 'Connection Alert',
-          isMe: false,
-          text: isUrdu
-            ? `اے آئی اسسٹنٹ سے رابطہ نہیں ہو سکا: ${errMsg}`
-            : `Unable to reach AI Plant Health Assistant: ${errMsg}`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          isError: true,
-          retryPrompt: clean
-        }
-      ]);
-    } finally {
+      setMessages((prev) => [...prev, advisorMsg]);
       setIsSending(false);
-    }
+      xpCtx?.completeMissionByEvent('learning_activity');
+    }, 180);
   };
 
   const quickPrompts = isUrdu
     ? [
-        'نچلے پتوں پر بھورے دھبے کیوں آ رہے ہیں؟',
-        'نامیاتی نیم اسپرے کا محفوظ شیڈول بتائیں',
-        'آج کے موسم میں آبپاشی کب کرنی چاہیے؟',
-        'میری مٹی کی پی ایچ اور نمی کے مطابق کھاد؟'
+        'آخری اسکین کا آسان علاج بتائیں',
+        'نچلے پتوں پر بھورے دھبے (جھلساؤ)',
+        'سفید مکھی اور پتہ مروڑ کا کنٹرول',
+        '16 لیٹر ٹینکی اسپرے کی خوراک',
+        'پیلے پتے اور پانی دینے کا صحیح وقت'
       ]
     : [
-        'Explain my latest scan and organic first steps',
-        'Safe neem & copper spray timing for this humidity',
-        'Why are my lower tomato leaves turning yellow?',
-        'Adjust watering based on today’s weather & soil'
+        'Explain my latest scan & organic steps',
+        'How to stop Early vs Late Blight spots',
+        'Whitefly & Leaf Curl Virus control',
+        '16L / 20L spray tanki dosage guide',
+        'Why are lower leaves turning yellow?'
       ];
 
   const fallbackDisease = TOMATO_DISEASES[1];
@@ -465,7 +465,7 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
         sourceType: latestScan.source,
         imageUri: latestScan.thumbnailUrl,
         processingTimeMs: 420,
-        aiEngineUsed: 'Google Gemini 4 Hydrogen',
+        aiEngineUsed: 'AgroVision Neural Edge',
         stage1: {
           status: latestScan.isTomatoLeaf ? 'tomato_leaf' : 'non_tomato_leaf',
           isTomato: latestScan.isTomatoLeaf,
@@ -499,7 +499,7 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
         sourceType: 'sample',
         imageUri: '',
         processingTimeMs: 380,
-        aiEngineUsed: 'Google Gemini 4 Hydrogen',
+        aiEngineUsed: 'AgroVision Neural Edge',
         stage1: {
           status: 'tomato_leaf',
           isTomato: true,
@@ -517,20 +517,20 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Assistant Header Banner */}
+      {/* Advisor Header Banner */}
       <div className="rounded-2xl bg-[#14532d] p-4 sm:p-5 text-white shadow-sm flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider text-[#fef3c7] font-bold mb-1">
-            <Sparkles className="w-3.5 h-3.5 text-[#f59e0b]" />
-            <span>Gemini 4 Hydrogen · {isUrdu ? 'دو لسانی زرعی مشیر' : 'Plant Health Assistant'}</span>
+            <BookOpenCheck className="w-3.5 h-3.5 text-[#f59e0b]" />
+            <span>{isUrdu ? 'دو لسانی زرعی علم · آف لائن دستیاب' : 'AGRONOMIC KNOWLEDGE BASE · OFFLINE READY'}</span>
           </div>
           <h2 className="font-display text-lg font-extrabold leading-tight">
-            {isUrdu ? 'اے آئی پلانٹ ہیلتھ اسسٹنٹ' : 'AI Plant Health Assistant'}
+            {isUrdu ? 'ٹماٹر زرعی مشیر' : 'Tomato Agronomic Advisor'}
           </h2>
           <p className="text-xs text-white/85 mt-0.5">
             {isUrdu
-              ? 'اسکین، مٹی اور موسم کے ساتھ فوری زرعی مشورہ حاصل کریں'
-              : 'Multi-turn agronomic guidance grounded in your scans, soil, weather & plant stage.'}
+              ? 'اسکین، مٹی، موسم اور پاکستانی منڈی کے مطابق فوری تصدیق شدہ رہنمائی۔'
+              : 'Instant tomato disease, spray dosage, soil pH & seasonal advice grounded in your field data.'}
           </p>
         </div>
 
@@ -551,7 +551,7 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
             }}
             className="min-h-[38px] px-3 py-1.5 rounded-xl bg-[#166534] hover:bg-[#1f5134] border border-white/20 text-white text-xs font-bold cursor-pointer"
           >
-            {isUrdu ? 'نئی چیٹ' : 'New Chat'}
+            {isUrdu ? 'نئی گفتگو' : 'Clear Chat'}
           </button>
         </div>
       </div>
@@ -591,7 +591,7 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
             }`}
           >
             <Droplets className="w-3.5 h-3.5" />
-            <span>
+            <span className="tabular-nums">
               {moisturePercent}% · pH {soilPh.toFixed(1)}
               {liveWeather ? ` · ${liveWeather.current.tempC}°C` : ''}
             </span>
@@ -632,7 +632,7 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
             key={q}
             type="button"
             disabled={isSending}
-            onClick={() => void sendAssistantPrompt(q)}
+            onClick={() => void sendAdvisorPrompt(q)}
             className="min-h-[36px] px-3 py-1.5 rounded-xl bg-[#edf5ef] hover:bg-[#dcebe1] border border-[#cbdcd0] text-[#14532d] text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
           >
             {q}
@@ -645,17 +645,15 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
         {messages.map((msg) => (
           <div key={msg.id} className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}>
             <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[#5b7463] mb-1 px-1">
-              {!msg.isMe && <Bot className="w-3.5 h-3.5 text-[#14532d]" />}
+              {!msg.isMe && <BookOpenCheck className="w-3.5 h-3.5 text-[#14532d]" />}
               <span>{msg.sender}</span>
               <span aria-hidden="true">·</span>
-              <span className="font-mono">{msg.timestamp}</span>
+              <span className="font-mono tabular-nums">{msg.timestamp}</span>
             </div>
 
             <div
-              className={`max-w-[88%] rounded-2xl px-4 py-3 text-xs leading-relaxed shadow-xs space-y-2 ${
-                msg.isError
-                  ? 'bg-[#fef2f2] text-[#991b1b] border border-[#fca5a5]'
-                  : msg.isMe
+              className={`max-w-[90%] rounded-2xl px-4 py-3 text-xs leading-relaxed shadow-xs space-y-2 ${
+                msg.isMe
                   ? 'bg-[#166534] text-white rounded-br-sm'
                   : 'bg-[#faf8f2] text-[#13281c] border border-[#cbdcd0] rounded-bl-sm'
               }`}
@@ -667,18 +665,7 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
               )}
               <p className="whitespace-pre-wrap">{msg.text}</p>
 
-              {msg.isError && msg.retryPrompt && (
-                <button
-                  type="button"
-                  onClick={() => void sendAssistantPrompt(msg.retryPrompt!)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white border border-[#fca5a5] text-[#991b1b] font-bold text-[11px] cursor-pointer"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  <span>{isUrdu ? 'دوبارہ کوشش کریں' : 'Retry'}</span>
-                </button>
-              )}
-
-              {!msg.isMe && !msg.isError && (
+              {!msg.isMe && (
                 <div className="pt-1 flex items-center justify-end gap-2">
                   <button
                     type="button"
@@ -712,11 +699,11 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
         {isSending && (
           <div className="flex items-start gap-2.5 text-xs text-[#3d5947]">
             <div className="w-7 h-7 rounded-lg bg-[#14532d] text-white flex items-center justify-center shrink-0">
-              <Bot className="w-4 h-4" />
+              <BookOpenCheck className="w-4 h-4" />
             </div>
             <div className="px-4 py-2.5 rounded-2xl bg-[#faf8f2] border border-[#cbdcd0] inline-flex items-center gap-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin text-[#166534]" />
-              <span>{isUrdu ? 'اے آئی مشورہ تیار کر رہا ہے...' : 'Gemini 4 Hydrogen is thinking...'}</span>
+              <span>{isUrdu ? 'زرعی مشورہ تیار ہو رہا ہے...' : 'Preparing field guidance...'}</span>
             </div>
           </div>
         )}
@@ -729,7 +716,10 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
           className="px-3.5 py-2 rounded-xl bg-[#fef2f2] border border-[#fca5a5] flex items-center justify-between gap-2 text-xs font-bold text-[#991b1b]"
         >
           <span className="truncate">
-            {interimSpeech || (isUrdu ? 'آواز سنی جا رہی ہے...' : 'Listening... speak your question')}
+            {interimSpeech ||
+              (micLang === 'ur-PK'
+                ? 'اردو آواز سنی جا رہی ہے...'
+                : 'Listening in English... speak your question')}
           </span>
           <button
             type="button"
@@ -748,19 +738,28 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
         </div>
       )}
 
-      {/* Composer */}
+      {/* Composer with Voice Mic Language Toggle + Mic + Send */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          void sendAssistantPrompt(draft);
+          void sendAdvisorPrompt(draft);
         }}
-        className="flex items-center gap-2"
+        className="flex items-center gap-1.5 sm:gap-2"
       >
+        <button
+          type="button"
+          onClick={() => setMicLang((l) => (l === 'ur-PK' ? 'en-US' : 'ur-PK'))}
+          title={isUrdu ? 'مائیک کی زبان بدلیں' : 'Switch voice language'}
+          className="min-h-[46px] px-2.5 rounded-2xl bg-white border border-[#cbdcd0] text-[11px] font-mono font-bold text-[#14532d] hover:bg-[#edf5ef] shrink-0 cursor-pointer"
+        >
+          {micLang === 'ur-PK' ? 'UR' : 'EN'}
+        </button>
+
         <button
           type="button"
           onClick={toggleDictation}
           aria-pressed={isListening}
-          aria-label={isUrdu ? 'آواز سے سوال پوچھیں' : 'Voice question'}
+          aria-label={isUrdu ? 'آواز سے سوال پوچھیں' : 'Speak question with microphone'}
           className={`min-h-[46px] min-w-[46px] rounded-2xl border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
             isListening
               ? 'bg-[#b91c1c] border-[#991b1b] text-white'
@@ -777,10 +776,10 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
           disabled={isSending}
           placeholder={
             isUrdu
-              ? 'بیماری، علاج، مٹی یا موسم کے بارے میں سوال پوچھیں...'
-              : 'Ask about leaf symptoms, organic sprays, soil pH, or weather risk...'
+              ? 'بیماری، علاج، مٹی یا منڈی کے بارے میں سوال لکھیں یا مائیک دبائیں...'
+              : 'Ask about yellow leaves, blight, whitefly, tanki spray, or use mic...'
           }
-          className="flex-1 min-h-[46px] px-4 py-2 rounded-2xl bg-white border border-[#cbdcd0] text-xs text-[#13281c] placeholder-[#5b7463] focus:outline-none focus:ring-2 focus:ring-[#166534]"
+          className="flex-1 min-h-[46px] px-3.5 sm:px-4 py-2 rounded-2xl bg-white border border-[#cbdcd0] text-xs text-[#13281c] placeholder-[#5b7463] focus:outline-none focus:ring-2 focus:ring-[#166534]"
         />
 
         <button
@@ -797,8 +796,8 @@ export const FieldMessengerView: React.FC<FieldMessengerViewProps> = ({
         <Leaf className="w-3.5 h-3.5 text-[#166534] shrink-0" />
         <span>
           {isUrdu
-            ? 'اے آئی مشورے تعلیمی و ابتدائی رہنمائی کے لیے ہیں — شدید علامات میں زرعی افسر سے رجوع کریں۔'
-            : 'Educational agronomy guidance — confirm visible lesions with a scan and consult local agricultural extension for severe outbreaks.'}
+            ? 'یہ مشورے تصدیق شدہ زرعی اصولوں پر مبنی ہیں — شدید وبائی علامات میں ہیلپ لائن 0800-17000 یا زرعی افسر سے رابطہ کریں۔'
+            : 'Grounded in tomato pathology guidelines — verify active spots with a leaf scan or call Extension Helpline (0800-17000) for severe outbreaks.'}
         </span>
       </div>
 

@@ -60,6 +60,15 @@ export interface SensorDiagnosisInsights {
   urduAgronomicAdjustment: string;
 }
 
+export interface CareRoutineStep {
+  phase: string;
+  urduPhase: string;
+  title: string;
+  urduTitle: string;
+  instruction: string;
+  urduInstruction: string;
+}
+
 export interface DiagnosisResult {
   id: string;
   isPlantLeaf: boolean;
@@ -75,8 +84,12 @@ export interface DiagnosisResult {
   lesionCoveragePercent: number;
   detectedLesions: LesionBox[];
   summary: string;
+  urduSummary?: string;
+  diseaseDefinition?: string;
+  urduDiseaseDefinition?: string;
   keyObservations: string[];
   treatment: TreatmentPlan;
+  careRoutine?: CareRoutineStep[];
   sensorInsights?: SensorDiagnosisInsights;
   analysisTimestamp: string;
   sourceType: 'upload' | 'camera' | 'sample';
@@ -88,7 +101,8 @@ export interface DiagnosisResult {
     | 'AgroVision Offline Edge Fallback'
     | 'Gemini Vision AI'
     | 'Google Gemini 3.8 Flash'
-    | 'Google Gemini 4 Hydrogen';
+    | 'Google Gemini 4 Hydrogen'
+    | 'Google Gemini 3.1 Flash Lite';
 }
 
 export interface SampleLeaf {

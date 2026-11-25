@@ -56,7 +56,8 @@ service cloud.firestore {
     function isValidUserProfile(data, userId) {
       return data.keys().hasAll(['uid', 'role', 'xp', 'dailyStreak', 'longestStreak', 'streakFreezes', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly([
-          'uid', 'email', 'displayName', 'role', 'xp', 'dailyStreak', 'longestStreak',
+          'uid', 'email', 'displayName', 'phoneNumber', 'loginProvider', 'lastLoginAt',
+          'scanCount', 'plantCount', 'role', 'xp', 'dailyStreak', 'longestStreak',
           'lastCompletedDate', 'lastBonusDate', 'lastBonusAmount', 'streakFreezes',
           'lastFreezeUsedDate', 'dailyMissionsDate', 'completedMissions',
           'awardedActions', 'unlockedBadges', 'createdAt', 'updatedAt'
@@ -73,6 +74,11 @@ service cloud.firestore {
         && data.updatedAt is timestamp
         && (!('email' in data) || (data.email is string && data.email.size() <= 320))
         && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 120))
+        && (!('phoneNumber' in data) || data.phoneNumber == null || (data.phoneNumber is string && data.phoneNumber.size() <= 32))
+        && (!('loginProvider' in data) || (data.loginProvider is string && data.loginProvider.size() <= 40))
+        && (!('lastLoginAt' in data) || (data.lastLoginAt is string && data.lastLoginAt.size() <= 64))
+        && (!('scanCount' in data) || (data.scanCount is number && data.scanCount >= 0 && data.scanCount <= 100000))
+        && (!('plantCount' in data) || (data.plantCount is number && data.plantCount >= 0 && data.plantCount <= 10000))
         && (!('lastCompletedDate' in data) || data.lastCompletedDate == null || (data.lastCompletedDate is string && data.lastCompletedDate.size() <= 20))
         && (!('lastBonusDate' in data) || data.lastBonusDate == null || (data.lastBonusDate is string && data.lastBonusDate.size() <= 20))
         && (!('lastBonusAmount' in data) || (data.lastBonusAmount is number && data.lastBonusAmount >= 0 && data.lastBonusAmount <= 100))
@@ -140,12 +146,64 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
+    function isValidScanReport(data, reportId) {
+      return data.keys().hasAll(['id', 'reporterUid', 'reporterName', 'issueType', 'diagnosisId', 'diagnosisName', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'id', 'reporterUid', 'reporterName', 'reporterEmail', 'reporterPhone',
+          'authMode', 'issueType', 'diagnosisId', 'diagnosisName', 'stage1Status',
+          'confidence', 'sourceType', 'aiEngineUsed', 'notes', 'status', 'adminNote',
+          'thumbnailUrl', 'createdAt', 'updatedAt'
+        ])
+        && data.id is string && isValidId(data.id) && data.id == reportId
+        && data.reporterUid is string && isValidId(data.reporterUid)
+        && data.reporterName is string && data.reporterName.size() >= 1 && data.reporterName.size() <= 120
+        && data.issueType in ['wrong_disease', 'false_rejection', 'human_or_object_error', 'blur_quality', 'other']
+        && data.diagnosisId is string && data.diagnosisId.size() >= 1 && data.diagnosisId.size() <= 80
+        && data.diagnosisName is string && data.diagnosisName.size() >= 1 && data.diagnosisName.size() <= 140
+        && data.status in ['open', 'reviewed', 'resolved']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && (!('reporterEmail' in data) || (data.reporterEmail is string && data.reporterEmail.size() <= 320))
+        && (!('reporterPhone' in data) || data.reporterPhone == null || (data.reporterPhone is string && data.reporterPhone.size() <= 32))
+        && (!('authMode' in data) || data.authMode in ['firebase', 'device', 'guest'])
+        && (!('stage1Status' in data) || (data.stage1Status is string && data.stage1Status.size() <= 40))
+        && (!('confidence' in data) || (data.confidence is number && data.confidence >= 0 && data.confidence <= 100))
+        && (!('sourceType' in data) || data.sourceType in ['upload', 'camera', 'sample'])
+        && (!('aiEngineUsed' in data) || (data.aiEngineUsed is string && data.aiEngineUsed.size() <= 80))
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1200))
+        && (!('adminNote' in data) || (data.adminNote is string && data.adminNote.size() <= 600))
+        && (!('thumbnailUrl' in data) || (data.thumbnailUrl is string && data.thumbnailUrl.size() <= 220000));
+    }
+
     // -------------------------------------------------------------------------
     // Collections & Subcollections
     // -------------------------------------------------------------------------
     match /admins/{adminId} {
       allow get: if isSignedIn() && (isOwner(adminId) || isAdmin()) && isValidId(adminId);
       allow list, write: if false;
+    }
+
+    match /scanReports/{reportId} {
+      allow get: if isValidId(reportId) && (isAdmin() || (isSignedIn() && existing().reporterUid == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && resource.data.reporterUid == request.auth.uid);
+
+      allow create: if isSignedIn()
+        && isValidId(reportId)
+        && isValidScanReport(incoming(), reportId)
+        && incoming().reporterUid == request.auth.uid
+        && incoming().status == 'open'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isAdmin()
+        && isValidId(reportId)
+        && isValidScanReport(incoming(), reportId)
+        && incoming().id == existing().id
+        && incoming().reporterUid == existing().reporterUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+
+      allow delete: if isAdmin() && isValidId(reportId);
     }
 
     match /users/{userId} {
@@ -172,7 +230,8 @@ service cloud.firestore {
             && incoming().createdAt == existing().createdAt
             && incoming().updatedAt == request.time
             && incoming().diff(existing()).affectedKeys().hasOnly([
-              'email', 'displayName', 'xp', 'dailyStreak', 'longestStreak',
+              'email', 'displayName', 'phoneNumber', 'loginProvider', 'lastLoginAt',
+              'scanCount', 'plantCount', 'xp', 'dailyStreak', 'longestStreak',
               'lastCompletedDate', 'lastBonusDate', 'lastBonusAmount', 'streakFreezes',
               'lastFreezeUsedDate', 'dailyMissionsDate', 'completedMissions',
               'awardedActions', 'unlockedBadges', 'updatedAt'

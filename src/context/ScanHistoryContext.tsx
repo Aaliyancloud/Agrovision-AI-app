@@ -266,6 +266,12 @@ export const ScanHistoryProvider: React.FC<{ children: React.ReactNode }> = ({ c
         try {
           await ensureUserProfileDoc(user);
           await setDoc(doc(db, 'users', user.uid, 'scans', entry.id), buildFirestoreScanPayload(user.uid, entry));
+          const count = readStoredScans().length;
+          await setDoc(
+            doc(db, 'users', user.uid),
+            { scanCount: count, updatedAt: serverTimestamp() },
+            { merge: true }
+          );
           setCloudSyncStatus('synced');
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -305,6 +311,11 @@ export const ScanHistoryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setScans(next);
       if (user) {
         void deleteDoc(doc(db, 'users', user.uid, 'scans', id)).catch(() => {});
+        void setDoc(
+          doc(db, 'users', user.uid),
+          { scanCount: next.length, updatedAt: serverTimestamp() },
+          { merge: true }
+        ).catch(() => {});
       }
     },
     [user]
@@ -318,6 +329,11 @@ export const ScanHistoryProvider: React.FC<{ children: React.ReactNode }> = ({ c
       for (const item of existing) {
         void deleteDoc(doc(db, 'users', user.uid, 'scans', item.id)).catch(() => {});
       }
+      void setDoc(
+        doc(db, 'users', user.uid),
+        { scanCount: 0, updatedAt: serverTimestamp() },
+        { merge: true }
+      ).catch(() => {});
     }
   }, [user]);
 

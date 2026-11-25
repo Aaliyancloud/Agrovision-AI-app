@@ -134,11 +134,23 @@ export const PrintableDiagnosticReport: React.FC<PrintableDiagnosticReportProps>
             </div>
           </div>
 
-          <div className="p-2.5 rounded-lg bg-[#edf5ef] border border-emerald-200 text-xs leading-relaxed text-[#13281c]">
-            <strong className="text-emerald-950">
-              {isUrdu ? 'تشخیصی خلاصہ: ' : 'Clinical Summary: '}
-            </strong>
-            {result.summary}
+          <div className="p-2.5 rounded-lg bg-[#edf5ef] border border-emerald-200 text-xs leading-relaxed text-[#13281c] space-y-1">
+            <div>
+              <strong className="text-emerald-950">
+                {isUrdu ? 'تشخیصی خلاصہ: ' : 'Clinical Summary: '}
+              </strong>
+              {isUrdu ? result.urduSummary || result.summary : result.summary}
+            </div>
+            {(result.diseaseDefinition || result.urduDiseaseDefinition) && (
+              <div className="pt-1 border-t border-emerald-200/70 text-[11px] text-[#3d5947]">
+                <strong className="text-[#13281c]">
+                  {isUrdu ? 'بیماری کی تعریف: ' : 'Condition Definition: '}
+                </strong>
+                {isUrdu
+                  ? result.urduDiseaseDefinition || result.diseaseDefinition
+                  : result.diseaseDefinition}
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -246,46 +258,61 @@ export const PrintableDiagnosticReport: React.FC<PrintableDiagnosticReportProps>
         </div>
       </section>
 
-      {/* 7-Day Recovery Roadmap */}
+      {/* Disease-Specific Care Routine */}
       <section className="print-keep-together p-3 rounded-xl bg-white border border-[#cbdcd0] space-y-2">
         <div className="flex items-center justify-between text-xs font-bold text-[#13281c]">
           <span className="flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5 text-emerald-700" />
-            <span>{isUrdu ? '7 روزہ بحالی شیڈول' : '7-Day Structured Field Recovery Schedule'}</span>
+            <span>
+              {isUrdu
+                ? `${result.diseaseName} — خصوصی دیکھ بھال کا شیڈول`
+                : `Tailored Care Routine — ${result.diseaseName}`}
+            </span>
           </span>
           <span className="font-mono text-[10px] text-emerald-800">AgroVision Protocol</span>
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          <div className="p-2 rounded-lg bg-[#faf8f2] border border-[#cbdcd0]/80">
-            <div className="text-[9px] font-mono font-bold text-emerald-800 uppercase">Day 01</div>
-            <div className="font-bold text-[11px] text-[#13281c]">
-              {isUrdu ? 'نامیاتی اسپرے' : 'Targeted Spray'}
+        <div className="grid grid-cols-2 gap-2">
+          {(result.careRoutine && result.careRoutine.length > 0
+            ? result.careRoutine
+            : [
+                {
+                  phase: 'Day 01',
+                  urduPhase: 'پہلا دن',
+                  title: 'Immediate Action',
+                  urduTitle: 'فوری اقدام',
+                  instruction: result.treatment.organic[0] || 'Follow organic treatment steps.',
+                  urduInstruction: result.treatment.organic[0] || 'نامیاتی علاج پر عمل کریں۔'
+                },
+                {
+                  phase: 'Water & Soil',
+                  urduPhase: 'پانی اور زمین',
+                  title: 'Water & Canopy Care',
+                  urduTitle: 'پانی اور ہوا کی ترتیب',
+                  instruction: result.treatment.cultural[0] || 'Keep foliage dry and water at root zone.',
+                  urduInstruction: 'صبح جڑوں میں پانی دیں اور پتوں کو خشک رکھیں۔'
+                },
+                {
+                  phase: 'Day 07',
+                  urduPhase: 'ساتواں دن',
+                  title: 'Follow-Up Verification',
+                  urduTitle: 'نئی کونپلوں کا معائنہ',
+                  instruction: result.treatment.prevention[0] || 'Inspect new upper shoots for clean growth.',
+                  urduInstruction: 'نئی کونپلوں کا معائنہ کریں۔'
+                }
+              ]
+          ).map((step, idx) => (
+            <div key={idx} className="p-2 rounded-lg bg-[#faf8f2] border border-[#cbdcd0]/80">
+              <div className="text-[9px] font-mono font-bold text-emerald-800 uppercase">
+                {isUrdu ? step.urduPhase : step.phase}
+              </div>
+              <div className="font-bold text-[11px] text-[#13281c]">
+                {isUrdu ? step.urduTitle : step.title}
+              </div>
+              <p className="text-[10px] text-[#3d5947] mt-0.5 leading-snug">
+                {isUrdu ? step.urduInstruction : step.instruction}
+              </p>
             </div>
-            <p className="text-[10px] text-[#3d5947] mt-0.5 leading-snug">
-              {result.treatment.organic[0] ||
-                'Apply organic copper or neem extract at dusk to limit spore germination.'}
-            </p>
-          </div>
-          <div className="p-2 rounded-lg bg-[#faf8f2] border border-[#cbdcd0]/80">
-            <div className="text-[9px] font-mono font-bold text-amber-800 uppercase">Day 03</div>
-            <div className="font-bold text-[11px] text-[#13281c]">
-              {isUrdu ? 'جھلسے پتے تلف کریں' : 'Sanitation Pruning'}
-            </div>
-            <p className="text-[10px] text-[#3d5947] mt-0.5 leading-snug">
-              {result.treatment.cultural[0] ||
-                'Prune heavily spotted lower leaves and sanitize shears between plants.'}
-            </p>
-          </div>
-          <div className="p-2 rounded-lg bg-[#faf8f2] border border-[#cbdcd0]/80">
-            <div className="text-[9px] font-mono font-bold text-emerald-800 uppercase">Day 07</div>
-            <div className="font-bold text-[11px] text-[#13281c]">
-              {isUrdu ? 'نئی کونپلوں کا معائنہ' : 'Shoot Verification'}
-            </div>
-            <p className="text-[10px] text-[#3d5947] mt-0.5 leading-snug">
-              {result.treatment.prevention[0] ||
-                'Inspect new terminal shoots for clean green vigor with zero lesion spread.'}
-            </p>
-          </div>
+          ))}
         </div>
       </section>
 

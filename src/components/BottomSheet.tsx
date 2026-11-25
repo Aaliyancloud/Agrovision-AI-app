@@ -90,7 +90,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
       aria-label={title}
     >
       <div
-        dir={dir}
+        dir="ltr"
         onClick={(e) => e.stopPropagation()}
         className={`w-full ${maxWidthClass} max-h-full rounded-3xl bg-white border border-[#cfe5d7] shadow-[0_18px_48px_rgba(19,40,28,0.28)] native-sheet-enter flex flex-col overflow-hidden`}
         style={{

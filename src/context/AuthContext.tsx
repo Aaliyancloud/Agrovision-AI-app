@@ -22,8 +22,10 @@ export interface GrowerProfile {
   uid: string;
   displayName: string;
   email: string;
+  phoneNumber?: string;
   photoURL?: string | null;
   emailVerified: boolean;
+  provider?: 'google' | 'email' | 'device';
   source: 'firebase' | 'device';
 }
 
@@ -31,31 +33,42 @@ interface StoredDeviceAccount {
   uid: string;
   displayName: string;
   email: string;
+  phoneNumber?: string;
   password: string;
   createdAt: string;
 }
 
+const ADMIN_EMAIL_LOWER = 'yousaaf.awan56@gmail.com';
 const DEVICE_PROFILE_STORAGE_KEY = 'agrovision_local_profile_v1';
 const DEVICE_ACCOUNTS_STORAGE_KEY = 'agrovision_local_accounts_v1';
+const PHONE_BY_UID_STORAGE_KEY = 'agrovision_phone_by_uid_v1';
+const AVATAR_BY_UID_STORAGE_KEY = 'agrovision_avatar_by_uid_v1';
 
 interface AuthContextValue {
   user: User | null;
   activeProfile: GrowerProfile | null;
   authReady: boolean;
   isGuest: boolean;
+  isAdmin: boolean;
   cloudSyncStatus: CloudSyncStatus;
   setCloudSyncStatus: (status: CloudSyncStatus) => void;
   authError: string | null;
   authSuccess: string | null;
   clearAuthMessages: () => void;
   signInWithGoogleAccount: () => Promise<boolean>;
-  signUpWithEmailAccount: (displayName: string, email: string, password: string) => Promise<boolean>;
+  signUpWithEmailAccount: (
+    displayName: string,
+    email: string,
+    password: string,
+    phoneNumber?: string
+  ) => Promise<boolean>;
   signInWithEmailAccount: (email: string, password: string) => Promise<boolean>;
   resendVerification: () => Promise<boolean>;
   sendPasswordReset: (email: string) => Promise<boolean>;
   signOutAccount: () => Promise<void>;
-  ensureUserProfileDoc: (activeUser: User) => Promise<void>;
-  updateGrowerProfile: (displayName: string, photoURL?: string) => void;
+  ensureUserProfileDoc: (activeUser: User, explicitPhone?: string) => Promise<void>;
+  updateGrowerProfile: (displayName: string, photoURL?: string, phoneNumber?: string) => void;
+  syncAllAccountsNow: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -96,25 +109,15 @@ function writeStoredAccounts(accounts: StoredDeviceAccount[]) {
   }
 }
 
-function readDeviceProfile(): GrowerProfile {
-  const defaultProf: GrowerProfile = {
-    uid: 'device_aaryan_awan',
-    displayName: 'Aaryan Awan',
-    email: 'aaryan.awan@agrovision.ai',
-    emailVerified: true,
-    source: 'device'
-  };
-  if (typeof window === 'undefined') return defaultProf;
+function readDeviceProfile(): GrowerProfile | null {
+  if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(DEVICE_PROFILE_STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(DEVICE_PROFILE_STORAGE_KEY, JSON.stringify(defaultProf));
-      return defaultProf;
-    }
+    if (!raw) return null;
     const parsed = JSON.parse(raw) as GrowerProfile;
-    return parsed?.uid && parsed?.email ? parsed : defaultProf;
+    return parsed?.uid && (parsed?.displayName || parsed?.email) ? parsed : null;
   } catch {
-    return defaultProf;
+    return null;
   }
 }
 
@@ -128,6 +131,156 @@ function writeDeviceProfile(profile: GrowerProfile | null) {
     }
   } catch {
     // ignore storage quota errors
+  }
+}
+
+function readCachedPhone(uid: string): string {
+  if (typeof window === 'undefined' || !uid) return '';
+  try {
+    const raw = localStorage.getItem(PHONE_BY_UID_STORAGE_KEY);
+    if (!raw) return '';
+    const map = JSON.parse(raw) as Record<string, string>;
+    return typeof map?.[uid] === 'string' ? map[uid] : '';
+  } catch {
+    return '';
+  }
+}
+
+function writeCachedPhone(uid: string, phone: string) {
+  if (typeof window === 'undefined' || !uid) return;
+  try {
+    const raw = localStorage.getItem(PHONE_BY_UID_STORAGE_KEY);
+    const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    map[uid] = phone.trim().slice(0, 32);
+    localStorage.setItem(PHONE_BY_UID_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
+function readCachedAvatar(uid: string): string | null {
+  if (typeof window === 'undefined' || !uid) return null;
+  try {
+    const raw = localStorage.getItem(AVATAR_BY_UID_STORAGE_KEY);
+    if (!raw) return null;
+    const map = JSON.parse(raw) as Record<string, string>;
+    return typeof map?.[uid] === 'string' ? map[uid] : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedAvatar(uid: string, avatarDataOrUrl: string | null) {
+  if (typeof window === 'undefined' || !uid) return;
+  try {
+    const raw = localStorage.getItem(AVATAR_BY_UID_STORAGE_KEY);
+    const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    if (avatarDataOrUrl) {
+      map[uid] = avatarDataOrUrl;
+    } else {
+      delete map[uid];
+    }
+    localStorage.setItem(AVATAR_BY_UID_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
+function detectFirebaseProvider(activeUser: User): 'google' | 'email' {
+  const isGoogle = activeUser.providerData?.some((p) => p?.providerId === 'google.com');
+  return isGoogle ? 'google' : 'email';
+}
+
+async function syncUserToServer(params: {
+  uid: string;
+  displayName: string;
+  email: string;
+  phoneNumber?: string;
+  photoURL?: string;
+  clearPhoto?: boolean;
+  provider: 'google' | 'email' | 'device';
+  emailVerified: boolean;
+  xp?: number;
+  level?: number;
+  dailyStreak?: number;
+  scansCount?: number;
+  plantsCount?: number;
+  createdAt?: string;
+  lastLoginAt?: string;
+  isLoginEvent?: boolean;
+}) {
+  try {
+    await fetch('/api/users/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    });
+  } catch {
+    // ignore transient network errors
+  }
+}
+
+function shouldLogSessionLogin(uid: string): boolean {
+  if (typeof window === 'undefined' || !uid) return false;
+  try {
+    const key = `agrovision_session_logged_${uid}`;
+    if (sessionStorage.getItem(key)) return false;
+    sessionStorage.setItem(key, '1');
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+async function syncAllLocalAccountsToServer() {
+  if (typeof window === 'undefined') return;
+  try {
+    const accounts = readStoredAccounts();
+    const activeDev = readDeviceProfile();
+    const payloadMap = new Map<string, any>();
+
+    for (const acc of accounts) {
+      if (!acc?.uid) continue;
+      const phone = (acc.phoneNumber || readCachedPhone(acc.uid) || '').trim();
+      const avatar = readCachedAvatar(acc.uid) || '';
+      payloadMap.set(acc.uid, {
+        uid: acc.uid,
+        displayName: acc.displayName || acc.email?.split('@')[0] || 'Grower',
+        email: acc.email || '',
+        phoneNumber: phone,
+        ...(avatar ? { photoURL: avatar } : {}),
+        provider: 'device',
+        emailVerified: false,
+        createdAt: acc.createdAt || undefined
+      });
+    }
+
+    if (activeDev?.uid) {
+      const existing = payloadMap.get(activeDev.uid);
+      const phone = (activeDev.phoneNumber || existing?.phoneNumber || readCachedPhone(activeDev.uid) || '').trim();
+      const avatar = activeDev.photoURL || readCachedAvatar(activeDev.uid) || '';
+      payloadMap.set(activeDev.uid, {
+        ...(existing || {}),
+        uid: activeDev.uid,
+        displayName: activeDev.displayName || existing?.displayName || 'Grower',
+        email: activeDev.email || existing?.email || '',
+        phoneNumber: phone,
+        ...(avatar ? { photoURL: avatar } : {}),
+        provider: activeDev.provider || 'device',
+        emailVerified: Boolean(activeDev.emailVerified)
+      });
+    }
+
+    const users = Array.from(payloadMap.values());
+    if (users.length === 0) return;
+
+    await fetch('/api/users/sync-batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ users })
+    });
+  } catch {
+    // ignore transient offline errors
   }
 }
 
@@ -168,6 +321,8 @@ function formatAuthErrorMessage(err: unknown): string {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [deviceProfile, setDeviceProfile] = useState<GrowerProfile | null>(() => readDeviceProfile());
+  const [firebasePhone, setFirebasePhone] = useState<string>('');
+  const [cachedAvatar, setCachedAvatar] = useState<string | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>(() =>
     readDeviceProfile() ? 'device' : 'guest'
@@ -175,18 +330,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccess, setAuthSuccess] = useState<string | null>(null);
 
-  const ensureUserProfileDoc = useCallback(async (activeUser: User) => {
+  const ensureUserProfileDoc = useCallback(async (activeUser: User, explicitPhone?: string) => {
+    const cleanPhone = (explicitPhone ?? readCachedPhone(activeUser.uid) ?? '').trim().slice(0, 32);
+    const provider = detectFirebaseProvider(activeUser);
+    const cleanName = (activeUser.displayName || activeUser.email?.split('@')[0] || 'Grower').slice(0, 120);
+
+    if (cleanPhone) {
+      writeCachedPhone(activeUser.uid, cleanPhone);
+      setFirebasePhone(cleanPhone);
+    }
+
     try {
       const userRef = doc(db, 'users', activeUser.uid);
       const snap = await getDoc(userRef);
       if (!snap.exists()) {
-        const cleanName = (activeUser.displayName || activeUser.email?.split('@')[0] || 'Grower').slice(0, 120);
         await setDoc(userRef, {
           uid: activeUser.uid,
           email: (activeUser.email || '').slice(0, 320),
           displayName: cleanName,
+          phoneNumber: cleanPhone,
+          loginProvider: provider,
+          lastLoginAt: new Date().toISOString(),
           role: 'grower',
-          xp: 20,
+          xp: 0,
           dailyStreak: 0,
           longestStreak: 0,
           streakFreezes: 1,
@@ -194,6 +360,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
+      } else {
+        const remoteData = snap.data();
+        const remotePhone = typeof remoteData?.phoneNumber === 'string' ? remoteData.phoneNumber : '';
+        const finalPhone = cleanPhone || remotePhone;
+        if (finalPhone) {
+          writeCachedPhone(activeUser.uid, finalPhone);
+          setFirebasePhone(finalPhone);
+        }
+        await setDoc(
+          userRef,
+          {
+            displayName: cleanName,
+            ...(finalPhone ? { phoneNumber: finalPhone } : {}),
+            loginProvider: provider,
+            lastLoginAt: new Date().toISOString(),
+            updatedAt: serverTimestamp()
+          },
+          { merge: true }
+        );
       }
       setCloudSyncStatus('synced');
     } catch (err) {
@@ -207,13 +392,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    // Handle any returning Google redirect flow
+    void syncAllLocalAccountsToServer();
+
     getRedirectResult(auth)
       .then((res) => {
         if (res?.user) {
           writeDeviceProfile(null);
           setDeviceProfile(null);
           void ensureUserProfileDoc(res.user);
+          const logSession = shouldLogSessionLogin(res.user.uid);
+          void syncUserToServer({
+            uid: res.user.uid,
+            displayName: res.user.displayName || res.user.email?.split('@')[0] || 'Grower',
+            email: res.user.email || '',
+            phoneNumber: readCachedPhone(res.user.uid),
+            photoURL: readCachedAvatar(res.user.uid) || res.user.photoURL || '',
+            provider: detectFirebaseProvider(res.user),
+            emailVerified: res.user.emailVerified,
+            isLoginEvent: logSession
+          });
         }
       })
       .catch(() => {
@@ -224,14 +421,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(firebaseUser);
       setAuthReady(true);
       if (firebaseUser) {
+        const cachedPhone = readCachedPhone(firebaseUser.uid);
+        const avatar = readCachedAvatar(firebaseUser.uid) || firebaseUser.photoURL || '';
+        setFirebasePhone(cachedPhone);
+        setCachedAvatar(readCachedAvatar(firebaseUser.uid));
         writeDeviceProfile(null);
         setDeviceProfile(null);
         setCloudSyncStatus('syncing');
         void ensureUserProfileDoc(firebaseUser);
+        void syncUserToServer({
+          uid: firebaseUser.uid,
+          displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Grower',
+          email: firebaseUser.email || '',
+          phoneNumber: cachedPhone,
+          ...(avatar ? { photoURL: avatar } : {}),
+          provider: detectFirebaseProvider(firebaseUser),
+          emailVerified: firebaseUser.emailVerified,
+          isLoginEvent: shouldLogSessionLogin(firebaseUser.uid)
+        });
       } else {
+        setFirebasePhone('');
         const savedDevice = readDeviceProfile();
         setDeviceProfile(savedDevice);
+        setCachedAvatar(savedDevice?.uid ? readCachedAvatar(savedDevice.uid) : null);
         setCloudSyncStatus(savedDevice ? 'device' : 'guest');
+        if (savedDevice) {
+          void syncUserToServer({
+            uid: savedDevice.uid,
+            displayName: savedDevice.displayName,
+            email: savedDevice.email || '',
+            phoneNumber: savedDevice.phoneNumber || readCachedPhone(savedDevice.uid),
+            photoURL: savedDevice.photoURL || readCachedAvatar(savedDevice.uid) || '',
+            provider: savedDevice.provider || 'device',
+            emailVerified: Boolean(savedDevice.emailVerified),
+            isLoginEvent: shouldLogSessionLogin(savedDevice.uid)
+          });
+        }
       }
     });
     return () => unsub();
@@ -254,6 +479,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       writeDeviceProfile(null);
       setDeviceProfile(null);
       await ensureUserProfileDoc(cred.user);
+      await syncUserToServer({
+        uid: cred.user.uid,
+        displayName: cred.user.displayName || cred.user.email?.split('@')[0] || 'Grower',
+        email: cred.user.email || '',
+        phoneNumber: readCachedPhone(cred.user.uid),
+        photoURL: readCachedAvatar(cred.user.uid) || cred.user.photoURL || '',
+        provider: 'google',
+        emailVerified: cred.user.emailVerified,
+        isLoginEvent: true
+      });
       setAuthSuccess('Welcome! Signed in with Google.');
       return true;
     } catch (err) {
@@ -279,11 +514,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [ensureUserProfileDoc]);
 
   const signUpWithEmailAccount = useCallback(
-    async (displayName: string, email: string, password: string): Promise<boolean> => {
+    async (
+      displayName: string,
+      email: string,
+      password: string,
+      phoneNumber: string = ''
+    ): Promise<boolean> => {
       setAuthError(null);
       setAuthSuccess(null);
       const cleanEmail = email.trim().toLowerCase();
       const cleanName = (displayName.trim() || cleanEmail.split('@')[0] || 'Grower').slice(0, 80);
+      const cleanPhone = phoneNumber.trim().slice(0, 32);
 
       if (password.length < 6) {
         setAuthError('Please choose a password with at least 6 characters.');
@@ -295,13 +536,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (cleanName) {
           await updateProfile(cred.user, { displayName: cleanName });
         }
+        if (cleanPhone) {
+          writeCachedPhone(cred.user.uid, cleanPhone);
+          setFirebasePhone(cleanPhone);
+        }
         try {
           await sendEmailVerification(cred.user);
           setAuthSuccess('Account created! Welcome to AgroVision.');
         } catch {
           setAuthSuccess('Account created! Your profile is ready.');
         }
-        await ensureUserProfileDoc(cred.user);
+        await ensureUserProfileDoc(cred.user, cleanPhone);
+        await syncUserToServer({
+          uid: cred.user.uid,
+          displayName: cleanName,
+          email: cleanEmail,
+          phoneNumber: cleanPhone,
+          provider: 'email',
+          emailVerified: cred.user.emailVerified,
+          isLoginEvent: true
+        });
         return true;
       } catch (err) {
         if (isFirebaseConfigOrDomainBlock(err)) {
@@ -315,20 +569,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             uid,
             displayName: cleanName,
             email: cleanEmail,
+            phoneNumber: cleanPhone,
             password,
             createdAt: new Date().toISOString()
           };
           writeStoredAccounts([...existing, newAccount]);
+          if (cleanPhone) writeCachedPhone(uid, cleanPhone);
           const localProf: GrowerProfile = {
             uid,
             displayName: cleanName,
             email: cleanEmail,
+            phoneNumber: cleanPhone,
             emailVerified: false,
+            provider: 'device',
             source: 'device'
           };
           writeDeviceProfile(localProf);
           setDeviceProfile(localProf);
           setCloudSyncStatus('device');
+          await syncUserToServer({
+            uid,
+            displayName: cleanName,
+            email: cleanEmail,
+            phoneNumber: cleanPhone,
+            provider: 'device',
+            emailVerified: false,
+            isLoginEvent: true
+          });
           setAuthSuccess('Grower account created and saved on this device.');
           return true;
         }
@@ -363,6 +630,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         writeDeviceProfile(null);
         setDeviceProfile(null);
         await ensureUserProfileDoc(cred.user);
+        await syncUserToServer({
+          uid: cred.user.uid,
+          displayName: cred.user.displayName || cred.user.email?.split('@')[0] || 'Grower',
+          email: cred.user.email || cleanEmail,
+          phoneNumber: readCachedPhone(cred.user.uid),
+          photoURL: readCachedAvatar(cred.user.uid) || cred.user.photoURL || '',
+          provider: 'email',
+          emailVerified: cred.user.emailVerified,
+          isLoginEvent: true
+        });
         setAuthSuccess('Welcome back! Signed in.');
         return true;
       } catch (err) {
@@ -375,12 +652,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             uid: localMatch.uid,
             displayName: localMatch.displayName,
             email: localMatch.email,
+            phoneNumber: localMatch.phoneNumber || readCachedPhone(localMatch.uid) || '',
+            photoURL: readCachedAvatar(localMatch.uid),
             emailVerified: false,
+            provider: 'device',
             source: 'device'
           };
           writeDeviceProfile(localProf);
           setDeviceProfile(localProf);
           setCloudSyncStatus('device');
+          await syncUserToServer({
+            uid: localMatch.uid,
+            displayName: localMatch.displayName,
+            email: localMatch.email,
+            phoneNumber: localProf.phoneNumber,
+            photoURL: localProf.photoURL || '',
+            provider: 'device',
+            emailVerified: false,
+            isLoginEvent: true
+          });
           setAuthSuccess('Welcome back! Signed in on this device.');
           return true;
         }
@@ -392,6 +682,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             uid,
             displayName: cleanName,
             email: cleanEmail,
+            phoneNumber: '',
             password,
             createdAt: new Date().toISOString()
           };
@@ -400,12 +691,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             uid,
             displayName: cleanName,
             email: cleanEmail,
+            phoneNumber: '',
             emailVerified: false,
+            provider: 'device',
             source: 'device'
           };
           writeDeviceProfile(localProf);
           setDeviceProfile(localProf);
           setCloudSyncStatus('device');
+          await syncUserToServer({
+            uid,
+            displayName: cleanName,
+            email: cleanEmail,
+            phoneNumber: '',
+            provider: 'device',
+            emailVerified: false,
+            isLoginEvent: true
+          });
           setAuthSuccess('Signed in! Grower Profile saved on this device.');
           return true;
         }
@@ -455,53 +757,177 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOutAccount = useCallback(async () => {
     setAuthError(null);
     setAuthSuccess(null);
-    const defaultProf: GrowerProfile = {
-      uid: 'device_aaryan_awan',
-      displayName: 'Aaryan Awan',
-      email: 'aaryan.awan@agrovision.ai',
-      emailVerified: true,
-      source: 'device'
-    };
-    writeDeviceProfile(defaultProf);
-    setDeviceProfile(defaultProf);
+    writeDeviceProfile(null);
+    setDeviceProfile(null);
+    setFirebasePhone('');
     try {
       await signOut(auth);
     } catch {
       // ignore if only local profile was signed in
     }
-    setCloudSyncStatus('device');
+    setCloudSyncStatus('guest');
   }, []);
-
-  const updateGrowerProfile = useCallback((newName: string, newPhotoURL?: string) => {
-    const cleanName = newName.trim() || 'Aaryan Awan';
-    if (user) {
-      void updateProfile(user, {
-        displayName: cleanName,
-        ...(newPhotoURL !== undefined ? { photoURL: newPhotoURL } : {})
-      }).then(() => {
-        setUser({ ...user, displayName: cleanName, ...(newPhotoURL !== undefined ? { photoURL: newPhotoURL } : {}) });
-      });
-    } else if (deviceProfile) {
-      const updated: GrowerProfile = {
-        ...deviceProfile,
-        displayName: cleanName,
-        ...(newPhotoURL !== undefined ? { photoURL: newPhotoURL } : {})
-      };
-      writeDeviceProfile(updated);
-      setDeviceProfile(updated);
-    }
-  }, [user, deviceProfile]);
 
   const activeProfile: GrowerProfile | null = user
     ? {
         uid: user.uid,
-        displayName: user.displayName || user.email?.split('@')[0] || 'Aaryan Awan',
+        displayName: user.displayName || user.email?.split('@')[0] || 'Grower',
         email: user.email || '',
-        photoURL: user.photoURL,
+        phoneNumber: firebasePhone || readCachedPhone(user.uid),
+        photoURL:
+          cachedAvatar !== null
+            ? cachedAvatar || null
+            : readCachedAvatar(user.uid) || user.photoURL,
         emailVerified: user.emailVerified,
+        provider: detectFirebaseProvider(user),
         source: 'firebase'
       }
-    : deviceProfile;
+    : deviceProfile
+    ? {
+        ...deviceProfile,
+        photoURL: deviceProfile.photoURL || cachedAvatar || readCachedAvatar(deviceProfile.uid)
+      }
+    : null;
+
+  const isAdmin = Boolean(
+    activeProfile?.email && activeProfile.email.trim().toLowerCase() === ADMIN_EMAIL_LOWER
+  );
+
+  const updateGrowerProfile = useCallback(
+    (newName: string, newPhotoURL?: string, newPhoneNumber?: string) => {
+      const cleanName = newName.trim() || activeProfile?.displayName || 'Grower';
+      const cleanPhone =
+        newPhoneNumber !== undefined
+          ? newPhoneNumber.trim().slice(0, 32)
+          : activeProfile?.phoneNumber || '';
+
+      if (user) {
+        if (newPhoneNumber !== undefined) {
+          writeCachedPhone(user.uid, cleanPhone);
+          setFirebasePhone(cleanPhone);
+        }
+        if (newPhotoURL !== undefined) {
+          const avatarVal = newPhotoURL.trim();
+          writeCachedAvatar(user.uid, avatarVal || null);
+          setCachedAvatar(avatarVal);
+        }
+        const safeRemotePhoto =
+          newPhotoURL !== undefined && newPhotoURL.length > 0 && newPhotoURL.length < 1800 && !newPhotoURL.startsWith('data:')
+            ? newPhotoURL
+            : undefined;
+        void updateProfile(user, {
+          displayName: cleanName,
+          ...(safeRemotePhoto !== undefined ? { photoURL: safeRemotePhoto } : {})
+        }).catch(() => {
+          // ignore profile photo URL length constraints on Firebase Auth
+        });
+
+        void setDoc(
+          doc(db, 'users', user.uid),
+          {
+            displayName: cleanName,
+            phoneNumber: cleanPhone,
+            updatedAt: serverTimestamp()
+          },
+          { merge: true }
+        ).catch(() => {
+          // ignore if rules pending
+        });
+
+        void syncUserToServer({
+          uid: user.uid,
+          displayName: cleanName,
+          email: user.email || '',
+          phoneNumber: cleanPhone,
+          ...(newPhotoURL !== undefined
+            ? newPhotoURL.trim()
+              ? { photoURL: newPhotoURL.trim() }
+              : { clearPhoto: true }
+            : {}),
+          provider: detectFirebaseProvider(user),
+          emailVerified: user.emailVerified
+        });
+      } else {
+        const current = deviceProfile || {
+          uid: `device_${Date.now()}`,
+          email: 'grower@agrovision.local',
+          displayName: cleanName,
+          phoneNumber: cleanPhone,
+          emailVerified: false,
+          provider: 'device' as const,
+          source: 'device' as const
+        };
+        if (newPhoneNumber !== undefined) {
+          writeCachedPhone(current.uid, cleanPhone);
+        }
+        if (newPhotoURL !== undefined) {
+          const avatarVal = newPhotoURL.trim();
+          writeCachedAvatar(current.uid, avatarVal || null);
+          setCachedAvatar(avatarVal);
+        }
+        const updated: GrowerProfile = {
+          ...current,
+          displayName: cleanName,
+          phoneNumber: cleanPhone,
+          ...(newPhotoURL !== undefined ? { photoURL: newPhotoURL || null } : {})
+        };
+        writeDeviceProfile(updated);
+        setDeviceProfile(updated);
+
+        const accounts = readStoredAccounts();
+        const existsInAccounts = accounts.some((acc) => acc.uid === updated.uid);
+        const nextAccounts = existsInAccounts
+          ? accounts.map((acc) =>
+              acc.uid === updated.uid
+                ? { ...acc, displayName: cleanName, phoneNumber: cleanPhone }
+                : acc
+            )
+          : [
+              ...accounts,
+              {
+                uid: updated.uid,
+                displayName: cleanName,
+                email: updated.email,
+                phoneNumber: cleanPhone,
+                password: '',
+                createdAt: new Date().toISOString()
+              }
+            ];
+        writeStoredAccounts(nextAccounts);
+
+        setCloudSyncStatus('device');
+        void syncUserToServer({
+          uid: updated.uid,
+          displayName: cleanName,
+          email: updated.email,
+          phoneNumber: cleanPhone,
+          ...(newPhotoURL !== undefined
+            ? newPhotoURL.trim()
+              ? { photoURL: newPhotoURL.trim() }
+              : { clearPhoto: true }
+            : {}),
+          provider: 'device',
+          emailVerified: false
+        });
+      }
+    },
+    [user, deviceProfile, activeProfile?.displayName, activeProfile?.phoneNumber]
+  );
+
+  const syncAllAccountsNow = useCallback(async () => {
+    await syncAllLocalAccountsToServer();
+    if (user) {
+      await syncUserToServer({
+        uid: user.uid,
+        displayName: user.displayName || user.email?.split('@')[0] || 'Grower',
+        email: user.email || '',
+        phoneNumber: firebasePhone || readCachedPhone(user.uid),
+        photoURL: readCachedAvatar(user.uid) || user.photoURL || '',
+        provider: detectFirebaseProvider(user),
+        emailVerified: user.emailVerified
+      });
+    }
+  }, [user, firebasePhone]);
 
   return (
     <AuthContext.Provider
@@ -510,6 +936,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         activeProfile,
         authReady,
         isGuest: !activeProfile,
+        isAdmin,
         cloudSyncStatus,
         setCloudSyncStatus,
         authError,
@@ -522,7 +949,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         sendPasswordReset,
         signOutAccount,
         ensureUserProfileDoc,
-        updateGrowerProfile
+        updateGrowerProfile,
+        syncAllAccountsNow
       }}
     >
       {children}

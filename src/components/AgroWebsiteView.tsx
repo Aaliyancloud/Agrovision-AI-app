@@ -61,7 +61,7 @@ export const AgroWebsiteView: React.FC<AgroWebsiteViewProps> = ({ onOpenMobileAp
   return (
     <div
       id="top"
-      dir={isUrdu ? 'rtl' : 'ltr'}
+      dir="ltr"
       className={`min-h-screen w-full bg-[#faf8f2] text-[#13281c] font-sans selection:bg-[#edf5ef] selection:text-[#14532d] ${
         isUrdu ? 'font-urdu' : ''
       }`}

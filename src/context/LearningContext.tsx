@@ -124,13 +124,6 @@ export const LearningProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       };
       setProgressMap((curr) => ({ ...curr, [moduleId]: nextRec }));
       xpCtx?.completeMissionByEvent('learning_activity');
-      xpCtx?.awardXP(
-        20,
-        `Completed Guide: ${moduleId.replace(/_/g, ' ')} (+20 XP)`,
-        'سبق مکمل کرنے پر +20 XP!',
-        `learn_${moduleId}`,
-        false
-      );
       await syncModuleToCloud(nextRec);
     },
     [progressMap, xpCtx, syncModuleToCloud]

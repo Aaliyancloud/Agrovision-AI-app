@@ -15,10 +15,10 @@ export default defineConfig(({ command }) => {
         includeAssets: [
           'favicon.ico',
           'favicon.png',
-          'apple-touch-icon.png',
-          'pwa-192x192.png',
-          'pwa-512x512.png',
-          'pwa-maskable-512x512.png'
+          'apple-touch-icon-v4.png',
+          'icon-v4-192.png',
+          'icon-v4-512.png',
+          'icon-v4-maskable-512.png'
         ],
         manifest: {
           id: '/',
@@ -27,7 +27,7 @@ export default defineConfig(({ command }) => {
           description:
             'AI-powered tomato leaf pathology scanner, treatment advisor, and offline field diagnostic tool.',
           theme_color: '#14532d',
-          background_color: '#faf8f2',
+          background_color: '#14532d',
           display: 'standalone',
           display_override: ['standalone', 'minimal-ui'],
           orientation: 'portrait-primary',
@@ -40,38 +40,38 @@ export default defineConfig(({ command }) => {
               short_name: 'Scan Leaf',
               description: 'Open camera & leaf pathology scanner',
               url: '/?tab=scan&action=camera',
-              icons: [{ src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' }]
+              icons: [{ src: '/icon-v4-192.png', sizes: '192x192', type: 'image/png' }]
             },
             {
               name: 'Field Scan Log',
               short_name: 'Field Log',
               description: 'Review saved offline leaf diagnoses',
               url: '/?tab=history',
-              icons: [{ src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' }]
+              icons: [{ src: '/icon-v4-192.png', sizes: '192x192', type: 'image/png' }]
             },
             {
               name: 'Sensors & Care Library',
               short_name: 'Care & Soil',
               description: 'Soil moisture/pH & tomato disease guides',
               url: '/?tab=care',
-              icons: [{ src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' }]
+              icons: [{ src: '/icon-v4-192.png', sizes: '192x192', type: 'image/png' }]
             }
           ],
           icons: [
             {
-              src: '/pwa-192x192.png',
+              src: '/icon-v4-192.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any'
             },
             {
-              src: '/pwa-512x512.png',
+              src: '/icon-v4-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any'
             },
             {
-              src: '/pwa-maskable-512x512.png',
+              src: '/icon-v4-maskable-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable'

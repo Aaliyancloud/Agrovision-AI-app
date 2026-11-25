@@ -74,7 +74,7 @@ export const AppModal: React.FC<AppModalProps> = ({
       }}
     >
       <div
-        dir={dir}
+        dir="ltr"
         onClick={(e) => e.stopPropagation()}
         className={`relative w-full ${maxWidthClass} max-h-full flex flex-col overflow-hidden border shadow-2xl ${
           isSheet

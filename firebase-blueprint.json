@@ -2,7 +2,7 @@
   "entities": {
     "UserProfile": {
       "title": "UserProfile",
-      "description": "Tomato grower profile, XP progress, streak freezes, and event-driven daily mission tracking.",
+      "description": "Tomato grower profile, phone contact, XP progress, streak freezes, and event-driven daily mission tracking.",
       "type": "object",
       "properties": {
         "uid": {
@@ -18,6 +18,24 @@
         "displayName": {
           "type": "string",
           "maxLength": 120
+        },
+        "phoneNumber": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "loginProvider": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "scanCount": {
+          "type": "number"
+        },
+        "plantCount": {
+          "type": "number"
         },
         "role": {
           "type": "string",
@@ -240,12 +258,100 @@
         }
       },
       "required": ["moduleId", "uid", "completed", "bookmarked", "updatedAt"]
+    },
+    "ScanReport": {
+      "title": "ScanReport",
+      "description": "User-submitted AI Scanner misdiagnosis or model feedback report reviewed by admins.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "reporterUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "reporterName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "reporterEmail": {
+          "type": "string",
+          "maxLength": 320
+        },
+        "reporterPhone": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "authMode": {
+          "type": "string",
+          "enum": ["firebase", "device", "guest"]
+        },
+        "issueType": {
+          "type": "string",
+          "enum": ["wrong_disease", "false_rejection", "human_or_object_error", "blur_quality", "other"]
+        },
+        "diagnosisId": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "diagnosisName": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "stage1Status": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "sourceType": {
+          "type": "string",
+          "enum": ["upload", "camera", "sample"]
+        },
+        "aiEngineUsed": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1200
+        },
+        "status": {
+          "type": "string",
+          "enum": ["open", "reviewed", "resolved"]
+        },
+        "adminNote": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "thumbnailUrl": {
+          "type": "string",
+          "maxLength": 220000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "reporterUid", "reporterName", "issueType", "diagnosisId", "diagnosisName", "status", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/UserProfile" },
-      "description": "Private grower profile, XP state, daily missions, and streak freezes."
+      "description": "Private grower profile, phone contact, XP state, daily missions, and streak freezes."
     },
     "/users/{userId}/scans/{scanId}": {
       "schema": { "$ref": "#/entities/LeafScan" },
@@ -258,6 +364,10 @@
     "/users/{userId}/learningProgress/{moduleId}": {
       "schema": { "$ref": "#/entities/LearningProgress" },
       "description": "Learning Centre completion & bookmark records per grower."
+    },
+    "/scanReports/{reportId}": {
+      "schema": { "$ref": "#/entities/ScanReport" },
+      "description": "AI Scanner misdiagnosis & feedback reports submitted by users for model auditing."
     }
   }
 }

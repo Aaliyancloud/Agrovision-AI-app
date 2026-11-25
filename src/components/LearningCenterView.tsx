@@ -553,6 +553,82 @@ export const LearningCenterView: React.FC<LearningCenterViewProps> = ({
               {filteredModules.map(renderLessonCard)}
             </div>
           )}
+
+          {/* Verified Pakistan Agri Helplines & Anti-Fake Input Reference */}
+          <section className="rounded-2xl bg-[#faf8f2] border border-[#cbdcd0] p-4 sm:p-5 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-[#cbdcd0]">
+              <div>
+                <div className="text-[10px] font-mono font-bold uppercase text-[#14532d]">
+                  {isUrdu ? 'پاکستان زرعی تصدیق و ہیلپ لائن' : 'PAKISTAN VERIFIED FIELD REFERENCE'}
+                </div>
+                <h3 className="font-display text-sm font-extrabold text-[#13281c]">
+                  {isUrdu ? 'مفت زرعی ہیلپ لائنز اور نقلی دوا سے بچاؤ' : 'Agri Helplines & Anti-Fake Spray Checklist'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveModuleId('anti_fake_spray_verification')}
+                className="text-xs font-bold text-[#14532d] hover:underline cursor-pointer"
+              >
+                {isUrdu ? 'مکمل گائیڈ کھولیں →' : 'Read Full Guide →'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="p-3.5 rounded-xl bg-white border border-[#cbdcd0] space-y-1.5">
+                <div className="font-bold text-[#14532d]">
+                  {isUrdu ? 'سرکاری زرعی ہیلپ لائن نمبرز' : 'Official Agriculture Extension Contacts'}
+                </div>
+                <div className="space-y-1 font-mono text-[11px] text-[#13281c] tabular-nums">
+                  <div>
+                    {isUrdu ? 'پنجاب زرعی ہیلپ لائن:' : 'Punjab Agri Helpline (Toll-Free):'}{' '}
+                    <a href="tel:080017000" className="font-bold text-[#14532d] underline">
+                      0800-17000
+                    </a>
+                  </div>
+                  <div>
+                    {isUrdu ? 'این اے آر سی / پی اے آر سی:' : 'PARC / NARC Islamabad:'}{' '}
+                    <a href="tel:+925190733800" className="font-bold text-[#14532d] underline">
+                      +92 51 90733800
+                    </a>
+                  </div>
+                </div>
+                <p className="text-[11px] text-[#5b7463] leading-relaxed">
+                  {isUrdu
+                    ? 'سندھ، کے پی اور بلوچستان میں قریبی تحصیل زرعی دفتر / پیسٹ وارننگ سے مٹی اور پتے کی جانچ کروائیں۔'
+                    : 'Contact your nearest District Pest Warning & Quality Control office for lab tests or counterfeit batch checks.'}
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-white border border-[#cbdcd0] space-y-1.5">
+                <div className="font-bold text-[#b45309]">
+                  {isUrdu ? 'اسپرے خریدتے وقت 4 لازمی چیک' : '4 Checks Before Buying Any Spray'}
+                </div>
+                <ul className="space-y-1 text-[11px] text-[#3d5947] list-disc list-inside leading-relaxed">
+                  <li>
+                    {isUrdu
+                      ? 'ڈیلر سے بیچ نمبر والی پکی رسید ضرور لیں'
+                      : 'Take a printed invoice showing product batch number'}
+                  </li>
+                  <li>
+                    {isUrdu
+                      ? 'ڈھکن کے نیچے محفوظ ایلومینیم مہر (Seal) چیک کریں'
+                      : 'Verify intact aluminum induction foil seal under cap'}
+                  </li>
+                  <li>
+                    {isUrdu
+                      ? 'بوتل پر پرنٹ تاریخِ تنسیخ (Expiry) دیکھیں'
+                      : 'Check embossed manufacturing & expiry dates'}
+                  </li>
+                  <li>
+                    {isUrdu
+                      ? 'کھلی یا بغیر لیبل بوتل ہرگز استعمال نہ کریں'
+                      : 'Avoid unsealed, repackaged, or unmarked bottles'}
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </section>
         </>
       )}
     </div>

@@ -167,15 +167,17 @@ body {
   animation: scrollNudgeFloat 2.2s ease-in-out infinite;
 }
 
-/* RTL Urdu typography adjustments */
+/* Urdu typography adjustments (keeps LTR layout fixed while rendering crisp Urdu script) */
+[lang="ur"],
 [dir="rtl"] {
   font-family: var(--font-urdu);
   letter-spacing: 0;
 }
 
+[lang="ur"] h1, [lang="ur"] h2, [lang="ur"] h3, [lang="ur"] .font-display,
 [dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3, [dir="rtl"] .font-display {
   font-family: var(--font-urdu);
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
 h1, h2, h3, .font-display {
@@ -1295,7 +1297,10 @@ img,
 
 .calm-mode .stagger-reveal,
 .calm-mode .nav-fly-word,
-.calm-mode .hero-word-rise {
+.calm-mode .hero-word-rise,
+.low-data-mode .stagger-reveal,
+.low-data-mode .nav-fly-word,
+.low-data-mode .hero-word-rise {
   opacity: 1 !important;
   transform: none !important;
   animation: none !important;
@@ -1334,7 +1339,20 @@ img,
 .calm-mode .animate-pigeon-head,
 .calm-mode .animate-pigeon-wind,
 .calm-mode .animate-camera-radial-wave,
-.calm-mode .animate-camera-radial-wave-delayed {
+.calm-mode .animate-camera-radial-wave-delayed,
+.low-data-mode .animate-laser-gpu,
+.low-data-mode .falling-leaf-1,
+.low-data-mode .falling-leaf-2,
+.low-data-mode .falling-leaf-3,
+.low-data-mode .falling-leaf-4,
+.low-data-mode .falling-leaf-5,
+.low-data-mode .animate-leaf-sway,
+.low-data-mode .animate-leaf-sway-subtle,
+.low-data-mode .animate-leaf-flutter,
+.low-data-mode .animate-gentle-float,
+.low-data-mode .footer-spore,
+.low-data-mode .animate-vine-drift-a,
+.low-data-mode .animate-vine-drift-b {
   animation: none !important;
 }
 
@@ -1696,10 +1714,29 @@ img,
   animation: nativeShimmerSweep 1.35s ease-in-out infinite;
 }
 
+@keyframes profileHaloSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.profile-avatar-halo {
+  animation: profileHaloSpin 24s linear infinite;
+  will-change: transform;
+}
+
+.calm-mode .profile-avatar-halo {
+  animation: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .native-view-enter,
   .native-sheet-enter,
-  .native-badge-pop {
+  .native-badge-pop,
+  .profile-avatar-halo {
     animation: none !important;
   }
   .native-shimmer::after {
@@ -1707,4 +1744,5 @@ img,
     display: none;
   }
 }
+
 

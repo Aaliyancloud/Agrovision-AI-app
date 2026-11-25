@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
+import { useOptionalXP } from '../context/XPContext';
 import { Droplets, Sparkles, CheckCircle2, Clock, Calendar, RefreshCw } from 'lucide-react';
 
 interface PlantSchedule {
@@ -27,6 +28,7 @@ function getDefaultSchedule(): PlantSchedule {
 
 export const PlantScheduleCard: React.FC = () => {
   const { isUrdu } = useLanguage();
+  const xpCtx = useOptionalXP();
   const [schedule, setSchedule] = useState<PlantSchedule>(() => {
     if (typeof window === 'undefined') return getDefaultSchedule();
     try {
@@ -51,20 +53,28 @@ export const PlantScheduleCard: React.FC = () => {
 
   const handleToggleWater = () => {
     const today = new Date().toISOString().split('T')[0];
+    const markingDone = !schedule.waterDoneToday;
     setSchedule((prev) => ({
       ...prev,
       waterDoneToday: !prev.waterDoneToday,
       lastWateredDate: !prev.waterDoneToday ? today : prev.lastWateredDate
     }));
+    if (markingDone) {
+      xpCtx?.completeMissionByEvent('daily_plant_care');
+    }
   };
 
   const handleToggleFertilizer = () => {
     const today = new Date().toISOString().split('T')[0];
+    const markingDone = !schedule.fertilizerDoneToday;
     setSchedule((prev) => ({
       ...prev,
       fertilizerDoneToday: !prev.fertilizerDoneToday,
       lastFertilizedDate: !prev.fertilizerDoneToday ? today : prev.lastFertilizedDate
     }));
+    if (markingDone) {
+      xpCtx?.completeMissionByEvent('daily_plant_care');
+    }
   };
 
   return (

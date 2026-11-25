@@ -101,7 +101,7 @@ export const MobileAppView: React.FC<MobileAppViewProps> = ({
 
   return (
     <div
-      dir={isUrdu ? 'rtl' : 'ltr'}
+      dir="ltr"
       className={`min-h-screen bg-[#faf8f2] text-[#13281c] flex flex-col font-sans ${
         isUrdu ? 'font-urdu' : ''
       }`}

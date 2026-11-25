@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
+import { useOptionalXP } from './XPContext';
 import { GrowthStage } from '../data/growthStageAlerts';
 
 export type PlantHealthStatus = 'thriving' | 'watch' | 'recovering';
@@ -109,6 +110,7 @@ export async function compressPlantPhoto(uri: string): Promise<string> {
 
 export const PlantJourneyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, ensureUserProfileDoc, setCloudSyncStatus } = useAuth();
+  const xpCtx = useOptionalXP();
   const [plants, setPlants] = useState<PlantJourneyEntry[]>(() => readStoredPlants());
 
   useEffect(() => {
@@ -214,6 +216,7 @@ export const PlantJourneyProvider: React.FC<{ children: React.ReactNode }> = ({ 
       };
 
       setPlants((prev) => [entry, ...prev]);
+      xpCtx?.completeMissionByEvent('daily_plant_care');
 
       if (user) {
         try {
@@ -233,6 +236,11 @@ export const PlantJourneyProvider: React.FC<{ children: React.ReactNode }> = ({ 
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           });
+          await setDoc(
+            doc(db, 'users', user.uid),
+            { plantCount: readStoredPlants().length + 1, updatedAt: serverTimestamp() },
+            { merge: true }
+          );
           setCloudSyncStatus('synced');
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -243,7 +251,7 @@ export const PlantJourneyProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
       return entry;
     },
-    [user, ensureUserProfileDoc, setCloudSyncStatus]
+    [user, ensureUserProfileDoc, setCloudSyncStatus, xpCtx]
   );
 
   const updatePlant = useCallback(
@@ -266,6 +274,7 @@ export const PlantJourneyProvider: React.FC<{ children: React.ReactNode }> = ({ 
             : p
         )
       );
+      xpCtx?.completeMissionByEvent('daily_plant_care');
 
       if (user) {
         try {
@@ -290,7 +299,7 @@ export const PlantJourneyProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
       }
     },
-    [user]
+    [user, xpCtx]
   );
 
   const attachScanIdToPlant = useCallback(
@@ -305,16 +314,22 @@ export const PlantJourneyProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const deletePlant = useCallback(
     async (id: string) => {
+      const nextLen = Math.max(0, plants.filter((p) => p.id !== id).length);
       setPlants((prev) => prev.filter((p) => p.id !== id));
       if (user) {
         try {
           await deleteDoc(doc(db, 'users', user.uid, 'plants', id));
+          await setDoc(
+            doc(db, 'users', user.uid),
+            { plantCount: nextLen, updatedAt: serverTimestamp() },
+            { merge: true }
+          );
         } catch {
           // Ignore cloud delete failure
         }
       }
     },
-    [user]
+    [user, plants]
   );
 
   return (
